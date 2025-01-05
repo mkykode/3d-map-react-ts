@@ -20,7 +20,9 @@ export interface TraceData {
 
 // File input handler
 
-function getColorForEvent(event: TraceData) {
+function getColorForEvent(event?: TraceData) {
+  if (!event) return new THREE.Color(0.5, 0.5, 0.5);
+  
   // Different colors for different event categories
   switch(event.name) {
     case 'RunTask':
@@ -38,7 +40,6 @@ function TopoMap({
 }: {
   traceData: TraceData[];
 }) {
-
   const gridData = useMemo(
     () =>
       traceData.length > 0
@@ -49,7 +50,6 @@ function TopoMap({
 
   return (
     <>
-      {/* 3D visualization */}
       <group>
         <gridHelper args={[75, 75]} />
         {gridData.map((point, index) => (
@@ -59,7 +59,7 @@ function TopoMap({
           >
             <boxGeometry args={[1, point.value, 1]} />
             <meshStandardMaterial
-              color={new THREE.Color(point.value / 5, 0, 1 - point.value / 5)}
+              color={getColorForEvent(point.traceEvent)}
             />
           </mesh>
         ))}
@@ -67,7 +67,6 @@ function TopoMap({
     </>
   );
 }
-
 export function processTraceEvents(events: any[]): TraceData[] {
   return events
     .filter(
@@ -85,9 +84,10 @@ export function processTraceEvents(events: any[]): TraceData[] {
       tid: event.tid,
     }));
 }
+
 function generateGridFromTrace(traceData: TraceData[]): GridData[] {
   const data: GridData[] = [];
-  const gridSize = 15;
+  const gridSize = 37.5;
   const noise2D = createNoise2D();
 
   // Find min/max durations for normalization
@@ -111,6 +111,7 @@ function generateGridFromTrace(traceData: TraceData[]): GridData[] {
         x,
         y,
         value: normalizedValue + noiseValue,
+        traceEvent: traceItem  // Store the trace event
       });
     }
   }

@@ -14,6 +14,7 @@ function App() {
           const json = JSON.parse(e.target?.result as string);
           const events = json.traceEvents || [];
           const processedData = processTraceEvents(events);
+          console.log('Processed trace data:', processedData); // Debug log
           setTraceData(processedData);
         } catch (error) {
           console.error("Error parsing trace file:", error);
