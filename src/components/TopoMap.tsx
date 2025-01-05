@@ -45,7 +45,9 @@ function TopoMap({ traceData }: { traceData: TraceData[] }) {
             ]}
           >
             <boxGeometry args={[1, Math.max(0.02, point.value), 1]} /> {/* Ensure minimum height */}
-            <meshStandardMaterial color={getColorForEventCategory(point.traceEvent)} />
+            <meshStandardMaterial
+              color={getColorForEventCategory(point.traceEvent, point.value)}
+            />
           </mesh>
         ))}
       </group>
