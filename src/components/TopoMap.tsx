@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { createNoise2D } from "simplex-noise";
+import { getColorForEvent, getColorForEventCategory, getColorForEventHash } from "../lib/getColorForEvent";
 
 export interface GridData {
   x: number;
@@ -20,32 +21,15 @@ export interface TraceData {
 
 // File input handler
 
-function getColorForEvent(event?: TraceData) {
-  if (!event) return new THREE.Color(0.5, 0.5, 0.5);
-  
-  // Different colors for different event categories
-  switch(event.name) {
-    case 'RunTask':
-      return new THREE.Color(1, 0, 0);  // Red
-    case 'EvaluateScript':
-      return new THREE.Color(0, 1, 0);  // Green
-    case 'CompileScript':
-      return new THREE.Color(0, 0, 1);  // Blue
-    default:
-      return new THREE.Color(0.5, 0.5, 0.5);  // Grey
-  }
-}
-function TopoMap({
-  traceData,
-}: {
-  traceData: TraceData[];
-}) {
+
+function TopoMap({ traceData }: { traceData: TraceData[] }) {
+  const traceDataNotEmpty = traceData.length > 0;
   const gridData = useMemo(
     () =>
-      traceData.length > 0
+      traceDataNotEmpty
         ? generateGridFromTrace(traceData)
         : generateDefaultGrid(),
-    [traceData],
+    [traceData, traceDataNotEmpty],
   );
 
   return (
@@ -55,12 +39,14 @@ function TopoMap({
         {gridData.map((point, index) => (
           <mesh
             key={index}
-            position={[point.x - 10, point.value / 2, point.y - 10]}
+            position={[
+              point.x - 10, 
+              Math.max(0.01, point.value / 2), // Ensure minimum height is above 0
+              point.y - 10
+            ]}
           >
-            <boxGeometry args={[1, point.value, 1]} />
-            <meshStandardMaterial
-              color={getColorForEvent(point.traceEvent)}
-            />
+            <boxGeometry args={[1, Math.max(0.02, point.value), 1]} /> {/* Ensure minimum height */}
+            <meshStandardMaterial color={getColorForEventCategory(point.traceEvent)} />
           </mesh>
         ))}
       </group>
@@ -111,7 +97,7 @@ function generateGridFromTrace(traceData: TraceData[]): GridData[] {
         x,
         y,
         value: normalizedValue + noiseValue,
-        traceEvent: traceItem  // Store the trace event
+        traceEvent: traceItem, // Store the trace event
       });
     }
   }
@@ -120,7 +106,7 @@ function generateGridFromTrace(traceData: TraceData[]): GridData[] {
 
 function generateDefaultGrid(): GridData[] {
   const data: GridData[] = [];
-  const gridSize = 15;
+  const gridSize = 37;
   const noise2D = createNoise2D();
 
   for (let x = 0; x < gridSize; x++) {
