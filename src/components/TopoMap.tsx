@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import * as THREE from "three";
 import { createNoise2D } from "simplex-noise";
 import { getColorForEvent, getColorForEventCategory, getColorForEventHash } from "../lib/getColorForEvent";
 
@@ -71,10 +70,13 @@ export function processTraceEvents(events: any[]): TraceData[] {
     }));
 }
 
+
 function generateGridFromTrace(traceData: TraceData[]): GridData[] {
   const data: GridData[] = [];
   const gridSize = 37.5;
   const noise2D = createNoise2D();
+  const HEIGHT_MULTIPLIER = 50; // Increased from 5 to 15 for more pronounced heights
+  const NOISE_INFLUENCE = 1; // Slight noise for variation
 
   // Find min/max durations for normalization
   const maxDuration = Math.max(...traceData.map((t) => t.dur));
@@ -82,22 +84,24 @@ function generateGridFromTrace(traceData: TraceData[]): GridData[] {
 
   for (let x = 0; x < gridSize; x++) {
     for (let y = 0; y < gridSize; y++) {
-      // Map grid position to trace data index
       const dataIndex = Math.floor((x * gridSize + y) % traceData.length);
       const traceItem = traceData[dataIndex];
 
-      // Normalize duration to a reasonable height value
+      // Normalize duration with increased height multiplier
       const normalizedValue =
-        ((traceItem.dur - minDuration) / (maxDuration - minDuration)) * 5;
+        ((traceItem.dur - minDuration) / (maxDuration - minDuration)) * HEIGHT_MULTIPLIER;
 
       // Add some noise for variation
-      const noiseValue = noise2D(x * 0.2, y * 0.2) * 1.5;
+      const noiseValue = noise2D(x * 0.2, y * 0.2) * 2 * NOISE_INFLUENCE;
+
+      // Apply a power function to make differences more pronounced
+      const heightValue = Math.pow(normalizedValue, 1.5); // Exponential scaling
 
       data.push({
         x,
         y,
-        value: normalizedValue + noiseValue,
-        traceEvent: traceItem, // Store the trace event
+        value: heightValue + noiseValue,
+        traceEvent: traceItem,
       });
     }
   }
