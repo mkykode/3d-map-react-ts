@@ -1,4 +1,3 @@
-
 import { useMemo } from "react";
 import * as THREE from "three";
 import { createNoise2D } from 'simplex-noise';
@@ -14,11 +13,11 @@ function TopoMap() {
 
   return (
     <group>
-      <gridHelper args={[75, 75]} />
+      <gridHelper args={[100, 100]} />
       {gridData.map((point, index) => (
         <mesh
           key={index}
-          position={[point.x - 15, point.value / 1, point.y - 15]}
+          position={[point.x - 37.5, point.value / 2, point.y - 37.5]}
         >
           <boxGeometry args={[1.00, point.value, 1.00]} />
           <meshStandardMaterial
@@ -32,7 +31,7 @@ function TopoMap() {
 
 function generateGridNoise(): GridData[] {
   const data: GridData[] = [];
-  const gridSize = 30;
+  const gridSize = 75;
   const noise2D = createNoise2D();
 
   for (let x = 0; x < gridSize; x++) {
