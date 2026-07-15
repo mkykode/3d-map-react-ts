@@ -1,183 +1,87 @@
-# 3D Trace Data Visualization Tool
+# Trace Topography
 
-A powerful 3D visualization tool built with React, Three.js, and TypeScript that transforms Chrome DevTools trace data into an interactive topographical map. This tool helps developers analyze and understand complex trace data through intuitive visual representation.
+A 3D instrument for Chrome DevTools performance traces. It parses traces with
+Chrome DevTools' own trace engine, then spends the third dimension on the
+things a flat flame chart cannot show: cross-thread landscapes, periodicity,
+aggregate hotspots, and trace-to-trace diffs.
 
-## Features
+Every spatial axis encodes a declared variable, renders are fully
+deterministic, and each orthographic camera preset collapses back into a 2D
+chart you already know: the top view of the canyon **is** the DevTools flame
+chart.
 
-- **3D Topographical Visualization**: Converts trace data into an interactive 3D terrain map
-- **Color-Coded Categories**: Different event categories are represented by distinct color schemes
-- **Interactive Controls**: Orbit, zoom, and pan capabilities for detailed exploration
-- **Real-time Data Processing**: Dynamic processing of Chrome DevTools trace files
-- **Customizable Visualization**: Adjustable height mapping and color schemes
-- **Event Category Legend**: Clear visual reference for different event types
+## Views
 
-## Event Categories
+| View | Question it answers | Axes |
+|---|---|---|
+| **Canyon** | Where does the time go, per thread, over time? | X time · Y stack depth · Z thread lane |
+| **Terrain** | What is the shape of this load? | X time · Y busy per bucket · Z track |
+| **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
+| **City** | Who costs the most overall? | footprint calls · height self time |
+| **Diff** | What regressed between two traces? | signed Δ busy, aligned at navigation start |
 
-The tool categorizes trace events into several main groups:
-- Metadata
-- Task Execution
-- JavaScript
-- Rendering
-- Networking
-- Navigation
-- Memory
-- Input
-- Browser
-- Other
+Overlays: web-vitals beacons (Nav/FP/FCP/LCP/DCL/Load), long-task markers
+(red bars over the main thread for tasks &gt;50 ms, tinted in the canyon too),
+screenshot filmstrip, per-frame floor tiles (dropped frames in red), JS-heap
+memory river, and causality arcs from the trace's flow events when an event
+is selected.
 
-## Getting Started
+Everything is linked: the time brush filters the terrain, city, and bottom-up
+table and dims the canyon; clicking a rhythm cell opens that slice in the
+canyon; clicking a city building or table row highlights those events
+everywhere.
 
-### Prerequisites
+## Usage
 
-Choose one of the following runtimes:
-- Bun.js (recommended) - faster installation and execution
-- Node.js (v14 or higher) with npm or yarn
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/3d-trace-visualization.git
-cd 3d-trace-visualization
+pnpm install
+pnpm dev
 ```
 
-2. Install dependencies:
+A bundled demo trace loads automatically. Load your own with **Load trace**
+(a `.json` export from the DevTools Performance panel, `chrome://tracing`, or
+Puppeteer/Playwright tracing). **Compare…** loads a second trace for diff
+mode.
 
-Using Bun (recommended):
-```bash
-# Install Bun if you haven't already
-curl -fsSL https://bun.sh/install | bash
+Controls: keys `1-5` switch views · `orbit/top/side` camera presets ·
+`W/A/S/D` zoom and pan · click an event for details and causality arcs ·
+`Esc` clears the selection. View, camera preset, scale, and brush are
+URL-shareable via the hash.
 
-# Install dependencies
-bun install
+## Architecture
+
+```
+src/
+  engine/   @paulirish/trace_engine adapter (Web Worker), columnar typed
+            arrays, bucketing / bottom-up / rhythm-fold / diff aggregations
+  scene/    R3F scenes: instanced lanes & terrain, analytical picking,
+            overlays, camera rig
+  state/    zustand stores (model, view, selection, brush) + hover isolate
+  ui/       toolbar, legend, details, bottom-up table, brush, tooltip
+  lib/      squarified treemap, URL hash state
 ```
 
-Using npm/yarn:
-```bash
-npm install
-# or
-yarn install
-```
+Design rules the code enforces:
 
-3. Start the development server:
-
-Using Bun:
-```bash
-bun dev
-```
-
-Using npm/yarn:
-```bash
-npm start
-# or
-yarn start
-```
-
-### Why Bun?
-
-We recommend using Bun for this project because:
-- Significantly faster installation times
-- Better TypeScript performance
-- Built-in bundler and test runner
-- Compatible with existing Node.js packages
-- Improved development experience with faster hot reloading
-
-### Usage
-
-1. Open the application in your browser
-2. Click the file input button to upload a Chrome DevTools trace file (.json)
-3. The visualization will automatically generate once the file is processed
-4. Use mouse controls to explore the visualization:
-   - Left click + drag to rotate
-   - Right click + drag to pan
-   - Scroll to zoom
-
-## Technical Details
-
-### Core Technologies
-
-- React
-- Three.js
-- TypeScript
-- React Three Fiber
-- Simplex Noise
-- Bun.js runtime
-
-### Key Components
-
-- `TopoMap`: Main visualization component
-- `Legend`: Category color reference
-- Event categorization system
-- Color mapping system
-
-### Data Processing
-
-The tool processes trace data through several steps:
-1. File parsing
-2. Event filtering
-3. Data normalization
-4. Height mapping
-5. Color assignment
+- **Zero synthetic data.** No noise, no random colors; the same trace renders
+  the same pixels every time.
+- **Instancing only.** Event geometry never enters the React tree; each lane
+  is one `InstancedMesh`, so 100k+ events render at interactive rates.
+- **Analytical picking.** The layout is axis-aligned, so hover resolves by
+  binary search over the columnar data instead of raycasting boxes.
+- **Validated color.** Categories use a CVD-validated palette in a fixed
+  order (DevTools-compatible semantics); magnitude uses a single-hue ramp;
+  diffs use a red/blue diverging pair around a neutral gray; status red is
+  reserved for long tasks and dropped frames.
 
 ## Development
 
-### Using Bun for Development
-
-Bun provides several advantages during development:
-
 ```bash
-# Run development server
-bun dev
-
-# Run tests
-bun test
-
-# Build for production
-bun build
-
-# Run TypeScript type checking
-bun run typecheck
+pnpm test    # Vitest: engine adapter + aggregation suites (real-trace fixture)
+pnpm build   # tsc -b && vite build
+pnpm lint    # eslint
 ```
 
-### Environment Setup
-
-Create a `.env` file in the root directory:
-```env
-RUNTIME=bun
-PORT=3000
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Troubleshooting
-
-### Common Issues with Bun
-
-1. If you encounter module resolution issues:
-```bash
-bun install --force
-```
-
-2. For TypeScript path aliases, ensure your `tsconfig.json` is properly configured:
-```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
-}
-```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Three.js community
-- React Three Fiber team
-- Chrome DevTools team for the trace data format
-- Bun.js team for the runtime
+The demo trace (`public/demo-trace.json`) doubles as the test fixture: a
+1.2 s slice of a real page load with metadata, screenshots, vitals markers,
+and the sampled CPU profile intact.
