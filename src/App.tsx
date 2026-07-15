@@ -1,52 +1,105 @@
+import { useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import TopoMap, { TraceData, processTraceEvents } from "./components/TopoMap";
-import Legend from "./components/Legend";
-import { useState } from "react";
+import { useAppStore, useHoverStore, type ViewId } from "./state/store";
+import { initUrlState } from "./lib/urlState";
+import { LANE_GAP, SURFACE } from "./scene/layout";
+import { CameraRig } from "./scene/CameraRig";
+import { CanyonScene } from "./scene/CanyonScene";
+import { TerrainScene } from "./scene/TerrainScene";
+import { RhythmScene } from "./scene/RhythmScene";
+import { CityScene } from "./scene/CityScene";
+import { DiffScene } from "./scene/DiffScene";
+import { Toolbar } from "./ui/Toolbar";
+import { LegendPanel } from "./ui/LegendPanel";
+import { DetailsPanel } from "./ui/DetailsPanel";
+import { BottomUpTable } from "./ui/BottomUpTable";
+import { BrushBar } from "./ui/BrushBar";
+import { Tooltip } from "./ui/Tooltip";
+
+const VIEW_KEYS: Record<string, ViewId> = {
+  "1": "canyon",
+  "2": "terrain",
+  "3": "rhythm",
+  "4": "city",
+  "5": "diff",
+};
 
 function App() {
-  const [traceData, setTraceData] = useState<TraceData[]>([]);
-  const handleTraceUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const json = JSON.parse(e.target?.result as string);
-          const events = json.traceEvents || [];
-          const processedData = processTraceEvents(events);
-          console.log('Processed trace data:', processedData);
-          setTraceData(processedData);
-        } catch (error) {
-          console.error("Error parsing trace file:", error);
-        }
-      };
-      reader.readAsText(file);
-    }
-  };
+  const model = useAppStore((s) => s.model);
+  const modelB = useAppStore((s) => s.modelB);
+  const view = useAppStore((s) => s.view);
+  const status = useAppStore((s) => s.status);
+  const error = useAppStore((s) => s.error);
+
+  useEffect(() => {
+    initUrlState();
+    // status is set synchronously by loadDemo, so StrictMode's second
+    // mount-effect run (and any remount) skips the duplicate parse.
+    const { model: loaded, status: loading } = useAppStore.getState();
+    if (!loaded && !loading) void useAppStore.getState().loadDemo();
+  }, []);
+
+  useEffect(() => {
+    useHoverStore.getState().setHover(null);
+  }, [view]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const nextView = VIEW_KEYS[event.key];
+      if (nextView) useAppStore.getState().setView(nextView);
+      if (event.key === "Escape") useAppStore.getState().setSelection(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const laneDepth = model ? model.lanes.length * LANE_GAP : 60;
+  const worldDepth =
+    view === "rhythm" ? 92 : view === "city" ? 74 : view === "diff" ? 46 : laneDepth;
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1 }}>
-        <input
-          type="file"
-          accept=".json"
-          onChange={handleTraceUpload}
-          style={{ color: "white" }}
-        />
+    <div className="shell">
+      <Toolbar />
+      <div className="stage">
+        <Canvas dpr={[1, 2]} gl={{ antialias: true }}>
+          <color attach="background" args={[SURFACE]} />
+          <ambientLight intensity={1.15} />
+          <directionalLight position={[40, 70, 30]} intensity={1.6} />
+          <CameraRig worldDepth={worldDepth} />
+          {model && view === "canyon" && <CanyonScene model={model} />}
+          {model && view === "terrain" && <TerrainScene model={model} />}
+          {model && view === "rhythm" && <RhythmScene model={model} />}
+          {model && view === "city" && <CityScene model={model} />}
+          {model && view === "diff" && modelB && (
+            <DiffScene model={model} modelB={modelB} />
+          )}
+        </Canvas>
+        <LegendPanel />
+        <DetailsPanel />
+        {(view === "canyon" || view === "city") && <BottomUpTable />}
+        {view !== "diff" && <BrushBar />}
+        <Tooltip />
+        {view === "diff" && !modelB && (
+          <div className="overlay-message">
+            <p>
+              Diff mode compares two traces aligned at navigation start.
+              <br />
+              Use <strong>Compare…</strong> in the toolbar to load trace B.
+            </p>
+          </div>
+        )}
+        {status && <div className="overlay-message">{status}</div>}
+        {error && (
+          <div className="overlay-message error">
+            <p>{error}</p>
+            <button className="btn" onClick={() => useAppStore.setState({ error: null })}>
+              dismiss
+            </button>
+          </div>
+        )}
       </div>
-      <Legend />
-      <Canvas 
-        camera={{ 
-          position: [20, 20, 20], // Moved further back
-          fov: 75 
-        }}
-      >
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
-        <TopoMap traceData={traceData} />
-        <OrbitControls />
-      </Canvas>
     </div>
   );
 }
