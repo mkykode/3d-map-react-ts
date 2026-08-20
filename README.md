@@ -1,5 +1,7 @@
 # Trace Topography
 
+**Live demo:** <https://trace-topography.jull-561.workers.dev>
+
 A 3D instrument for Chrome DevTools performance traces. It parses traces with
 Chrome DevTools' own trace engine, then spends the third dimension on the
 things a flat flame chart cannot show: cross-thread landscapes, periodicity,
@@ -26,10 +28,26 @@ screenshot filmstrip, per-frame floor tiles (dropped frames in red), JS-heap
 memory river, and causality arcs from the trace's flow events when an event
 is selected.
 
-Everything is linked: the time brush filters the terrain, city, and bottom-up
-table and dims the canyon; clicking a rhythm cell opens that slice in the
-canyon; clicking a city building or table row highlights those events
-everywhere.
+Everything is linked: drag across the overview strip (DevTools-style) to
+select a window; the window filters the terrain, city, and bottom-up table
+and dims the canyon. **Zoom to window** re-renders the canyon with only the
+selected slice, so detail gets cheaper the deeper you go. Clicking a rhythm
+cell opens that slice zoomed in the canyon; clicking a city building or
+table row highlights those events everywhere.
+
+Profiler parity tools:
+
+- **Tracks** (T): choose which threads feed the scene, like the DevTools
+  track list.
+- **Inspector HUD** (I): a toggleable overlay that live-updates with the
+  selected window's story: events, per-category self time, long tasks,
+  requests (with render-blocking count), network-stall time, and vitals.
+- **Network insight**: requests get collision-free waterfall rows,
+  render-blocking requests are tinted, and translucent bands mark spans
+  where the main thread idles while blocking requests are in flight.
+- **Cinematic motion**: camera preset and view changes fly on damped paths
+  and scenes grow out of the ground plane; the cost is one transform per
+  frame regardless of event count.
 
 ## Usage
 
@@ -44,7 +62,9 @@ Puppeteer/Playwright tracing). **Compare…** loads a second trace for diff
 mode.
 
 Controls: keys `1-5` switch views · `orbit/top/side` camera presets ·
-`W/A/S/D` zoom and pan · click an event for details and causality arcs ·
+`W/S` zoom, `A/D` + arrow keys pan (in top/side, left-drag pans as well) ·
+drag the overview strip to select a window · `Z` zoom to window · `T`
+tracks · `I` inspector · click an event for details and causality arcs ·
 `Esc` clears the selection. View, camera preset, scale, and brush are
 URL-shareable via the hash.
 
