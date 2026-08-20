@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "protocolId": "trace-topography-benchmark-v1",
+  "status": "preregistered",
+  "freezeGate": "reviewed-phase-boundary-commit",
+  "primaryOutcome": "top-three-known-intervention-target-accuracy",
+  "heldOut": {
+    "corpusId": "held-out-v1",
+    "caseCount": 12,
+    "envelopeCount": 72,
+    "runsPerCohort": 3,
+    "index": "benchmarks/held-out/index.json",
+    "inspectionBeforeBenchmark": "prohibited",
+    "tuningUse": "prohibited"
+  },
+  "semanticTarget": {
+    "granularity": "one-actionable-intervention-target-per-case",
+    "identity": "canonical-semantic-target-id-v1",
+    "sourcePreference": "authored-source-frame-with-generated-fallback",
+    "otherSupportedKinds": [
+      "browser-domain",
+      "request-identity",
+      "frame-outcome",
+      "supported-metric"
+    ],
+    "aliasPolicy": "only-aliases-sealed-in-ground-truth-before-freeze-receive-credit"
+  },
+  "groundTruth": {
+    "algorithm": "SHA-256",
+    "commitmentSha256": "778724c0f93e58cb85e4443fb882e6902f813701c28f049bd66fc29c5e56a59d",
+    "commitmentArtifact": "benchmarks/commitments/ground-truth.sha256",
+    "labelsTracked": false,
+    "rankingAccess": "prohibited",
+    "scoringAccess": "custodian-only-after-all-submissions-lock"
+  },
+  "scoring": {
+    "topK": 3,
+    "submission": "ordered-unique-semantic-target-ids",
+    "correctWhen": "sealed-target-or-sealed-alias-appears-at-rank-1-2-or-3",
+    "tieBreaker": "target-id-ascii-ascending",
+    "tiesAtCutoffReceiveExtraSlots": false,
+    "superiority": "trace-topography-accuracy-strictly-greater-than-devtools",
+    "tieOrLowerResult": "fail",
+    "failedToolRunCountsAs": "incorrect",
+    "unsupportedClaimCountsAs": "incorrect"
+  },
+  "studyDesign": {
+    "minimumEligibleParticipants": 8,
+    "casesPerParticipant": 12,
+    "casesPerToolPerParticipant": 6,
+    "minimumExposuresPerCasePerTool": 4,
+    "assignment": "balanced-incomplete-block-without-same-case-cross-tool-carryover",
+    "toolOrder": "balanced-randomized",
+    "randomizationSeedCustody": "custodian-recorded-before-first-session",
+    "participantCriteria": [
+      "at-least-two-years-browser-performance-diagnosis",
+      "used-chrome-performance-panel-monthly-within-last-12-months",
+      "not-a-trace-topography-contributor",
+      "not-a-benchmark-custodian",
+      "no-access-to-held-out-labels-or-generation-recipes"
+    ],
+    "training": {
+      "traceTopographyMinutes": 20,
+      "devToolsMinutes": 20,
+      "materials": "fixed-versioned-script-and-practice-cases-not-in-held-out-corpus",
+      "comprehensionCheck": "same-pass-threshold-per-tool-before-scored-work"
+    },
+    "timeLimitMinutesPerCase": 12,
+    "exclusions": [
+      "pre-scored-training-comprehension-threshold-not-met",
+      "participant-had-prior-label-or-recipe-access",
+      "participant-identity-or-consent-invalid",
+      "corpus-integrity-check-failed-before-case-start"
+    ],
+    "failures": [
+      "tool-crash-or-timeout-is-recorded-and-scored-incorrect",
+      "unsupported-or-empty-diagnosis-is-recorded-and-scored-incorrect",
+      "completed-cases-remain-when-participant-withdraws",
+      "replacement-participants-restore-preregistered-coverage-without-outcome-based-selection",
+      "no-outcome-based-case-or-participant-exclusion"
+    ]
+  },
+  "reportedSecondaryOutcomes": [
+    "diagnosis-time-ms",
+    "matched-rank",
+    "unsupported-claim-count",
+    "tool-failure-count",
+    "participant-and-exposure-count",
+    "all-exclusions"
+  ],
+  "resultSchema": [
+    "schemaVersion",
+    "protocolId",
+    "corpusId",
+    "commitmentSha256",
+    "startedAt",
+    "completedAt",
+    "participantCount",
+    "excludedParticipantCount",
+    "caseExposureCountPerTool",
+    "traceTopographyCorrect",
+    "devToolsCorrect",
+    "traceTopographyAccuracy",
+    "devToolsAccuracy",
+    "absoluteAccuracyDelta",
+    "superiorityGate",
+    "medianDiagnosisTimeMsByTool",
+    "unsupportedClaimCountByTool",
+    "failureCountByTool",
+    "exclusions"
+  ],
+  "revisionPolicy": "any-change-after-freeze-requires-new-protocol-id-corpus-version-commitment-and-disclosure"
+}

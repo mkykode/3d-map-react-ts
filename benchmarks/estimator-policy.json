@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "policyId": "median-mad-v1",
+  "family": "median-mad-v1",
+  "minimumRunsPerCohort": 3,
+  "maximumRunsPerCohort": 5,
+  "locationEstimator": "median",
+  "dispersionEstimator": {
+    "name": "median-absolute-deviation",
+    "normalConsistencyScale": 1.4826,
+    "pooledRule": "maximum-of-baseline-and-candidate-scaled-mad"
+  },
+  "effects": {
+    "absolute": "candidate-median-minus-baseline-median",
+    "relative": "absolute-delta-divided-by-max-absolute-baseline-and-unit-floor",
+    "missingValues": "excluded-and-reported-never-zero-filled"
+  },
+  "unitFloors": {
+    "ms": 0.1,
+    "bytes": 1024,
+    "count": 1,
+    "score": 0.001
+  },
+  "ranking": {
+    "formula": "max-zero-absolute-delta-over-max-pooled-dispersion-and-unit-floor-times-completeness-times-evidence-quality",
+    "completeness": "minimum-valid-run-fraction-across-cohorts",
+    "evidenceQualityWeights": {
+      "authored-source": 1,
+      "generated-source": 0.9,
+      "stable-non-source-identity": 0.85,
+      "unmatched": 0.7
+    },
+    "promotionRequires": [
+      "at-least-three-valid-samples-per-cohort",
+      "positive-absolute-delta",
+      "effect-exceeds-two-times-pooled-dispersion",
+      "complete-semantic-identity"
+    ]
+  },
+  "tieHandling": {
+    "primary": "ranking-score-descending",
+    "secondaryKey": "target-id-ascii-ascending",
+    "extraTopThreeSlots": false
+  },
+  "tuningManifest": "benchmarks/tuning/manifest.json",
+  "permittedTuning": "only-cases-listed-in-tuning-manifest-before-protocol-freeze",
+  "heldOutUse": "prohibited",
+  "parameterChangesAfterFreeze": "require-new-policy-id-and-full-benchmark-protocol-revision"
+}

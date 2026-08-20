@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "registryId": "known-regressions-v1",
+  "status": "empty-at-initial-freeze",
+  "caseCount": 0,
+  "cases": [],
+  "purpose": "public-regression-fixtures-may-be-added-only-through-a-versioned-protocol-revision",
+  "heldOutCaseIdsAllowed": false,
+  "privateLabelsAllowed": false
+}

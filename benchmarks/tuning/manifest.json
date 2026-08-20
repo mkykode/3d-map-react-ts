@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "tuning-v1",
+  "status": "fixed-policy-no-empirical-cases",
+  "caseCount": 0,
+  "cases": [],
+  "allowedUses": [
+    "synthetic-unit-tests",
+    "determinism-tests",
+    "implementation-conformance-to-median-mad-v1"
+  ],
+  "prohibitedUses": [
+    "held-out-input-inspection",
+    "held-out-label-access",
+    "post-freeze-parameter-selection",
+    "benchmark-result-driven-retuning"
+  ],
+  "heldOutUse": "prohibited",
+  "growthPolicy": "adding-a-case-requires-a-new-manifest-version-before-the-protocol-freeze-commit"
+}
