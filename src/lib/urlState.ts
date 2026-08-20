@@ -1,8 +1,8 @@
 import type { CameraPreset, ScaleMode, ViewId } from "../state/store";
 import { useAppStore } from "../state/store";
+import { CAMERA_PRESETS } from "../scene/cameraActions";
 
-const VIEWS: ViewId[] = ["canyon", "terrain", "rhythm", "city", "diff"];
-const PRESETS: CameraPreset[] = ["orbit", "top", "side"];
+const VIEWS: ViewId[] = ["canyon", "terrain", "rhythm", "city", "diff", "vitals"];
 const SCALES: ScaleMode[] = ["linear", "log"];
 
 /**
@@ -53,7 +53,7 @@ function applyHash(): void {
 
   const patch: Partial<ReturnType<typeof useAppStore.getState>> = {};
   if (view && VIEWS.includes(view)) patch.view = view;
-  if (preset && PRESETS.includes(preset)) patch.preset = preset;
+  if (preset && CAMERA_PRESETS.includes(preset)) patch.preset = preset;
   if (scale && SCALES.includes(scale)) patch.scale = scale;
   if (brushRaw) {
     const [a, b] = brushRaw.split("-").map(Number);

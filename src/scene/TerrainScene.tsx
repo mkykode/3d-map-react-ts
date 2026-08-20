@@ -21,6 +21,7 @@ import { TimeRuler } from "./TimeRuler";
 import { VitalsBeacons } from "./VitalsBeacons";
 import { ScreenshotStrip } from "./ScreenshotStrip";
 import { FrameFloor } from "./FrameFloor";
+import { StallBands } from "./StallBands";
 
 const BUCKETS = 280;
 const LONG_TASK_MS = 50;
@@ -35,11 +36,16 @@ const color = new THREE.Color();
 export function TerrainScene({ model }: { model: ParsedTraceModel }) {
   const brush = useAppStore((s) => s.brush);
   const scale = useAppStore((s) => s.scale);
+  const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const [t0, t1] = windowOf(model, brush);
 
+  const visibleLanes = useMemo(
+    () => model.lanes.filter((lane) => !hiddenLanes.has(lane.meta.id)),
+    [model, hiddenLanes],
+  );
   const grid = useMemo(
-    () => bucketize(model.lanes, t0, t1, BUCKETS),
-    [model, t0, t1],
+    () => bucketize(visibleLanes, t0, t1, BUCKETS),
+    [visibleLanes, t0, t1],
   );
   const maxBusy = useMemo(() => {
     let max = 0;
@@ -49,9 +55,9 @@ export function TerrainScene({ model }: { model: ParsedTraceModel }) {
     return Math.max(max, 1e-3);
   }, [grid]);
 
-  const worldDepth = model.lanes.length * LANE_GAP;
+  const worldDepth = visibleLanes.length * LANE_GAP;
   const bucketW = TIME_W / grid.bucketCount;
-  const mainLaneIndex = model.lanes.findIndex((l) => l.meta.kind === "main");
+  const mainLaneIndex = visibleLanes.findIndex((l) => l.meta.kind === "main");
 
   const markersInWindow = useMemo(
     () => model.markers.filter((m) => m.ts >= t0 && m.ts <= t1),
@@ -60,7 +66,7 @@ export function TerrainScene({ model }: { model: ParsedTraceModel }) {
 
   return (
     <group>
-      <TimeRuler rangeMs={t1 - t0} depth={worldDepth} />
+      <TimeRuler rangeMs={t1 - t0} depth={worldDepth} offsetMs={t0} />
       <VitalsBeacons
         markers={markersInWindow.map((m) => ({ ...m, ts: m.ts - t0 }))}
         rangeMs={t1 - t0}
@@ -83,19 +89,26 @@ export function TerrainScene({ model }: { model: ParsedTraceModel }) {
               anchorX="right"
               anchorY="middle"
             >
-              {model.lanes[bucketed.laneId].meta.name}
+              {visibleLanes[laneIndex].meta.name}
             </Text>
           </Billboard>
         </group>
       ))}
       {mainLaneIndex >= 0 && (
         <LongTaskMarkers
-          lane={model.lanes[mainLaneIndex]}
+          lane={visibleLanes[mainLaneIndex]}
           laneIndex={mainLaneIndex}
           t0={t0}
           t1={t1}
         />
       )}
+      <StallBands
+        model={model}
+        t0={t0}
+        t1={t1}
+        depth={worldDepth}
+        height={TERRAIN_H * 0.8}
+      />
       <FrameFloor
         frames={model.frames}
         t0={t0}

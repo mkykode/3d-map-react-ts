@@ -1,0 +1,3 @@
+export function encodedJsonBytes(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+}

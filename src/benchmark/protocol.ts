@@ -297,11 +297,6 @@ function summarizeOutcomes(values: readonly boolean[]) {
   return { correct, total: values.length, accuracy: correct / values.length };
 }
 
-function compareAscii(left: string, right: string): number {
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
-}
-
 function assertUnlabeledIndex(value: unknown): void {
   const prohibitedKeys = new Set([
     "answer",
@@ -355,3 +350,4 @@ function asString(value: unknown, label: string): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+import { compareAscii } from "../lib/stable";

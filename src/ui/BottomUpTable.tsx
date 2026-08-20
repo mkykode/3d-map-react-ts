@@ -14,12 +14,14 @@ export function BottomUpTable() {
   const setSelection = useAppStore((s) => s.setSelection);
   const [open, setOpen] = useState(true);
 
+  const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const { rows, folded } = useMemo(() => {
     if (!model) return { rows: [], folded: 0 };
     const [t0, t1] = windowOf(model, brush);
-    const all = bottomUp(model.lanes, t0, t1);
+    const visible = model.lanes.filter((l) => !hiddenLanes.has(l.meta.id));
+    const all = bottomUp(visible, t0, t1);
     return { rows: all.slice(0, ROWS), folded: all.length - ROWS };
-  }, [model, brush]);
+  }, [model, brush, hiddenLanes]);
 
   if (!model) return null;
   const [t0, t1] = windowOf(model, brush);
@@ -53,22 +55,32 @@ export function BottomUpTable() {
                     ? "selected"
                     : undefined
                 }
-                onClick={() =>
-                  setSelection(
-                    selection?.kind === "name" && selection.nameId === row.nameId
-                      ? null
-                      : { kind: "name", nameId: row.nameId },
-                  )
-                }
               >
                 <td>
-                  <span
-                    className="swatch"
-                    style={{ background: CATEGORIES[row.catId].color }}
-                  />
-                  <span className="name" title={model.names[row.nameId]}>
-                    {model.names[row.nameId]}
-                  </span>
+                  <button
+                    type="button"
+                    className="bottomup-select"
+                    aria-pressed={
+                      selection?.kind === "name" &&
+                      selection.nameId === row.nameId
+                    }
+                    onClick={() =>
+                      setSelection(
+                        selection?.kind === "name" &&
+                          selection.nameId === row.nameId
+                          ? null
+                          : { kind: "name", nameId: row.nameId },
+                      )
+                    }
+                  >
+                    <span
+                      className="swatch"
+                      style={{ background: CATEGORIES[row.catId].color }}
+                    />
+                    <span className="name" title={model.names[row.nameId]}>
+                      {model.names[row.nameId]}
+                    </span>
+                  </button>
                 </td>
                 <td>{formatMs(row.self)}</td>
                 <td>{formatMs(row.total)}</td>

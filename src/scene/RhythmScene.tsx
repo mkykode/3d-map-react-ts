@@ -26,6 +26,7 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
   const scale = useAppStore((s) => s.scale);
   const setBrush = useAppStore((s) => s.setBrush);
   const setView = useAppStore((s) => s.setView);
+  const setZoomed = useAppStore((s) => s.setZoomed);
 
   const mainLane = useMemo(
     () =>
@@ -110,9 +111,10 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
           if (event.instanceId === undefined) return;
           event.stopPropagation();
           const cell = cells[event.instanceId];
-          // Jump the canyon to this exact slice of time.
+          // Jump the canyon to this exact slice of time, zoomed in.
           const start = cell.second * 1000 + cell.offset * CELL_MS - 25;
           setBrush([Math.max(0, start), Math.min(model.rangeMs, start + 60)]);
+          setZoomed(true);
           setView("canyon");
         }}
       >

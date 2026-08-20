@@ -4,17 +4,31 @@ import { useAppStore, useHoverStore, type ViewId } from "./state/store";
 import { initUrlState } from "./lib/urlState";
 import { LANE_GAP, SURFACE } from "./scene/layout";
 import { CameraRig } from "./scene/CameraRig";
+import { Minimap } from "./scene/Minimap";
+import { RenderActivity } from "./scene/RenderActivity";
+import {
+  CAMERA_ARIA_KEYSHORTCUTS,
+  isEditableKeyboardTarget,
+} from "./scene/cameraActions";
 import { CanyonScene } from "./scene/CanyonScene";
 import { TerrainScene } from "./scene/TerrainScene";
 import { RhythmScene } from "./scene/RhythmScene";
 import { CityScene } from "./scene/CityScene";
 import { DiffScene } from "./scene/DiffScene";
+import { RegressionScene } from "./scene/RegressionScene";
+import { GrowIn } from "./scene/GrowIn";
 import { Toolbar } from "./ui/Toolbar";
 import { LegendPanel } from "./ui/LegendPanel";
 import { DetailsPanel } from "./ui/DetailsPanel";
 import { BottomUpTable } from "./ui/BottomUpTable";
 import { BrushBar } from "./ui/BrushBar";
 import { Tooltip } from "./ui/Tooltip";
+import { TrackPicker } from "./ui/TrackPicker";
+import { HudPanel } from "./ui/HudPanel";
+import { WebVitalsView } from "./ui/WebVitalsView";
+import { ExperimentImport } from "./ui/ExperimentImport";
+import type { FindingId } from "./domain/analysis";
+import type { RegressionProjection } from "./engine/findingContract";
 
 const VIEW_KEYS: Record<string, ViewId> = {
   "1": "canyon",
@@ -22,14 +36,25 @@ const VIEW_KEYS: Record<string, ViewId> = {
   "3": "rhythm",
   "4": "city",
   "5": "diff",
+  "6": "vitals",
 };
 
 function App() {
   const model = useAppStore((s) => s.model);
-  const modelB = useAppStore((s) => s.modelB);
   const view = useAppStore((s) => s.view);
   const status = useAppStore((s) => s.status);
   const error = useAppStore((s) => s.error);
+  const findingProjection = useAppStore((s) => s.analysisFindingProjection);
+  const regressionProjection = useAppStore(
+    (s) => s.analysisRegressionProjection,
+  );
+  const selectedFindingId = useAppStore(
+    (s) => s.analysisScope?.selectedFindingId ?? null,
+  );
+  const selectedEvidenceId = useAppStore(
+    (s) => s.analysisScope?.selectedEvidenceId ?? null,
+  );
+  const selectAnalysisFinding = useAppStore((s) => s.selectAnalysisFinding);
 
   useEffect(() => {
     initUrlState();
@@ -41,67 +66,190 @@ function App() {
 
   useEffect(() => {
     useHoverStore.getState().setHover(null);
+    if (view !== "diff") {
+      const host = document.getElementById("trace-camera");
+      if (host) {
+        for (const key of [
+          "regressionPickX",
+          "regressionPickY",
+          "regressionPickContributor",
+          "regressionPickEvidence",
+          "regressionSelectedContributor",
+          "regressionSelectedEvidence",
+        ]) {
+          delete host.dataset[key];
+        }
+      }
+    }
   }, [view]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const tag = (event.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const target = event.target as HTMLElement | null;
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        isEditableKeyboardTarget(target)
+      ) {
+        return;
+      }
+      if (event.key === "Escape") {
+        useAppStore.getState().setSelection(null);
+        return;
+      }
+      if (!event.altKey) return;
       const nextView = VIEW_KEYS[event.key];
       if (nextView) useAppStore.getState().setView(nextView);
-      if (event.key === "Escape") useAppStore.getState().setSelection(null);
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        const state = useAppStore.getState();
+        if (state.brush) state.setZoomed(!state.zoomed);
+      }
+      if (key === "i") useAppStore.getState().toggleHud();
+      if (key === "t") useAppStore.getState().toggleTrackPicker();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const laneDepth = model ? model.lanes.length * LANE_GAP : 60;
+  const hiddenLanes = useAppStore((s) => s.hiddenLanes);
+  const laneDepth = model
+    ? model.lanes.filter((l) => !hiddenLanes.has(l.meta.id)).length * LANE_GAP
+    : 60;
   const worldDepth =
     view === "rhythm" ? 92 : view === "city" ? 74 : view === "diff" ? 46 : laneDepth;
 
   return (
     <div className="shell">
       <Toolbar />
-      <div className="stage">
-        <Canvas dpr={[1, 2]} gl={{ antialias: true }}>
-          <color attach="background" args={[SURFACE]} />
-          <ambientLight intensity={1.15} />
-          <directionalLight position={[40, 70, 30]} intensity={1.6} />
-          <CameraRig worldDepth={worldDepth} />
-          {model && view === "canyon" && <CanyonScene model={model} />}
-          {model && view === "terrain" && <TerrainScene model={model} />}
-          {model && view === "rhythm" && <RhythmScene model={model} />}
-          {model && view === "city" && <CityScene model={model} />}
-          {model && view === "diff" && modelB && (
-            <DiffScene model={model} modelB={modelB} />
-          )}
-        </Canvas>
-        <LegendPanel />
-        <DetailsPanel />
-        {(view === "canyon" || view === "city") && <BottomUpTable />}
-        {view !== "diff" && <BrushBar />}
-        <Tooltip />
-        {view === "diff" && !modelB && (
+      <main className="stage">
+        <ExperimentImport />
+        {model && view === "vitals" ? (
+          <WebVitalsView model={model} />
+        ) : (
+          <>
+            <p id="camera-instructions" className="sr-only">
+              Interactive 3D trace. Trackpad scroll or arrow keys pan. Pinch,
+              mouse wheel, W, or S zoom. In orbit mode, Q and E rotate while R
+              and F tilt. Home fits all, Shift+Home fits the selection, and 0
+              resets. Keyboard commands work while this view is focused.
+            </p>
+            <Canvas
+              id="trace-camera"
+              role="application"
+              aria-label={
+                view === "diff" && regressionProjection
+                  ? regressionStageLabel(regressionProjection, selectedFindingId)
+                  : view === "diff" && selectedEvidenceId
+                    ? `Interactive 3D findings. Selected evidence ${selectedEvidenceId}`
+                  : "Interactive 3D trace"
+              }
+              aria-describedby="camera-instructions"
+              aria-keyshortcuts={CAMERA_ARIA_KEYSHORTCUTS}
+              tabIndex={0}
+              frameloop="demand"
+              dpr={[1, 2]}
+              gl={{ antialias: true }}
+            >
+              <color attach="background" args={[SURFACE]} />
+              <ambientLight intensity={1.15} />
+              <directionalLight position={[40, 70, 30]} intensity={1.6} />
+              <RenderActivity hostId="trace-camera" />
+              <CameraRig worldDepth={worldDepth} />
+              <GrowIn dep={model ? `${view}-${model.boundsMinUs}` : view}>
+                {model && view === "canyon" && <CanyonScene model={model} />}
+                {model && view === "terrain" && <TerrainScene model={model} />}
+                {model && view === "rhythm" && <RhythmScene model={model} />}
+                {model && view === "city" && <CityScene model={model} />}
+                {view === "diff" && regressionProjection && (
+                  <RegressionScene
+                    projection={regressionProjection}
+                    selectedFindingId={selectedFindingId}
+                    onSelect={(mark) =>
+                      selectAnalysisFinding(mark.findingId, mark.evidenceId)}
+                  />
+                )}
+                {view === "diff" && !regressionProjection && findingProjection && (
+                  <DiffScene
+                    projection={findingProjection}
+                    selectedEvidenceId={selectedEvidenceId}
+                    onSelect={(mark) =>
+                      selectAnalysisFinding(mark.findingId, mark.evidenceId)}
+                  />
+                )}
+              </GrowIn>
+            </Canvas>
+            <Minimap worldDepth={worldDepth} />
+            <LegendPanel />
+            <DetailsPanel />
+            <TrackPicker />
+            <HudPanel />
+            {(view === "canyon" || view === "city") && <BottomUpTable />}
+            {view !== "diff" && <BrushBar />}
+            <Tooltip />
+          </>
+        )}
+        {view === "diff" && !regressionProjection && !findingProjection && (
           <div className="overlay-message">
             <p>
-              Diff mode compares two traces aligned at navigation start.
+              Diff mode renders bounded worker-ranked findings.
               <br />
-              Use <strong>Compare…</strong> in the toolbar to load trace B.
+              Import and analyze a controlled experiment to populate this view.
             </p>
           </div>
         )}
-        {status && <div className="overlay-message">{status}</div>}
-        {error && (
-          <div className="overlay-message error">
-            <p>{error}</p>
-            <button className="btn" onClick={() => useAppStore.setState({ error: null })}>
-              dismiss
-            </button>
-          </div>
-        )}
-      </div>
+        <div
+          id="app-status"
+          className={status ? "overlay-message" : "sr-only"}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {status ?? ""}
+        </div>
+        <div
+          id="app-error"
+          className={error ? "overlay-message error" : "sr-only"}
+          role="alert"
+          aria-atomic="true"
+        >
+          {error ? (
+            <>
+              <p>{error}</p>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => useAppStore.setState({ error: null })}
+              >
+                dismiss
+              </button>
+            </>
+          ) : null}
+        </div>
+      </main>
     </div>
   );
 }
 
 export default App;
+
+function regressionStageLabel(
+  projection: RegressionProjection,
+  selectedFindingId: FindingId | null,
+): string {
+  const selected = projection.marks.find(
+    (mark) => mark.findingId === selectedFindingId,
+  );
+  const scaleSummary = Object.values(projection.scales)
+    .map((scale) => `${scale.markKind} scale in ${scale.unit}`)
+    .join(", ");
+  const gaps = projection.marks.filter((mark) => mark.gap).length;
+  return [
+    `Interactive 3D regression overview with ${projection.marks.length} selectable marks`,
+    scaleSummary,
+    `${gaps} explicit ${gaps === 1 ? "gap" : "gaps"}; no causal edges`,
+    selected
+      ? `Selected finding ${selected.title}. Selected evidence ${selected.evidenceId}, contributor ${selected.contributorId}`
+      : "No finding selected",
+  ].join(". ");
+}

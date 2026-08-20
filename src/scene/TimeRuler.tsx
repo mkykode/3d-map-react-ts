@@ -14,9 +14,12 @@ import {
 export function TimeRuler({
   rangeMs,
   depth,
+  offsetMs = 0,
 }: {
   rangeMs: number;
   depth: number;
+  /** Absolute time of the left edge; labels show offset + tick. */
+  offsetMs?: number;
 }) {
   const ticks = useMemo(() => {
     const step = niceTickStep(rangeMs);
@@ -56,7 +59,7 @@ export function TimeRuler({
               color={INK_MUTED}
               anchorX="center"
             >
-              {formatMs(t)}
+              {formatMs(offsetMs + t)}
             </Text>
           </group>
         );

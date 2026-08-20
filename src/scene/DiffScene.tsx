@@ -1,95 +1,114 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
-import * as THREE from "three";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
-import type { ParsedTraceModel } from "../engine/types";
-import { diffTraces } from "../engine/aggregate";
+import * as THREE from "three";
+import type { EvidenceIdentity } from "../domain/evidence";
 import { DIVERGING } from "../engine/categories";
-import { useAppStore } from "../state/store";
+import type {
+  FindingProjection,
+  FindingProjectionMark,
+} from "../engine/findingContract";
 import {
   GROUND,
-  INK_MUTED,
   INK_SECONDARY,
   LANE_D,
   LANE_GAP,
-  TIME_W,
-  scaleHeight,
 } from "./layout";
 
-const DIFF_H = 8;
+const MARK_W = 6;
+const MARK_H = 10;
 const ZERO_Y = 5;
 const dummy = new THREE.Object3D();
-const REGRESSION = new THREE.Color(DIVERGING.regression);
-const IMPROVEMENT = new THREE.Color(DIVERGING.improvement);
+const pickPoint = new THREE.Vector3();
+const selectedColor = new THREE.Color("#f0f4fa");
 
-/**
- * V5 Diff Terrain: two traces aligned at navigationStart, subtracted per
- * bucket. Red mountains rise above the neutral plane where B is slower;
- * blue valleys hang below where B is faster.
- */
 export function DiffScene({
-  model,
-  modelB,
+  projection,
+  selectedEvidenceId,
+  onSelect,
 }: {
-  model: ParsedTraceModel;
-  modelB: ParsedTraceModel;
+  projection: FindingProjection;
+  selectedEvidenceId: EvidenceIdentity | null;
+  onSelect: (mark: FindingProjectionMark) => void;
 }) {
-  const scale = useAppStore((s) => s.scale);
-  const grid = useMemo(() => diffTraces(model, modelB), [model, modelB]);
-  const bucketW = TIME_W / grid.bucketCount;
-  const worldDepth = Math.max(grid.lanes.length * LANE_GAP, LANE_GAP);
-
-  const boxes = useMemo(() => {
-    const list: { lane: number; bucket: number; delta: number }[] = [];
-    grid.lanes.forEach((lane, laneIndex) => {
-      for (let b = 0; b < lane.delta.length; b++) {
-        if (Math.abs(lane.delta[b]) > 1e-4) {
-          list.push({ lane: laneIndex, bucket: b, delta: lane.delta[b] });
-        }
-      }
-    });
-    return list;
-  }, [grid]);
-
+  const domains = [...new Set(projection.marks.map((mark) => mark.domain))];
+  const width = Math.max(
+    48,
+    ...projection.marks.map((mark) => (mark.domainRank + 1) * (MARK_W + 2)),
+  );
+  const worldDepth = Math.max(domains.length * LANE_GAP, LANE_GAP);
   const ref = useRef<THREE.InstancedMesh>(null);
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+
   useLayoutEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
-    boxes.forEach((box, i) => {
-      const h = Math.max(
-        scaleHeight(Math.abs(box.delta), grid.maxAbsDelta, DIFF_H, scale),
-        0.05,
-      );
-      const up = box.delta > 0;
+    const projectedDomains = [
+      ...new Set(projection.marks.map((mark) => mark.domain)),
+    ];
+    projection.marks.forEach((mark, index) => {
+      const height = 0.75 + mark.magnitudeRatio * MARK_H;
+      const below = mark.status === "improvement" || mark.status === "removed";
       dummy.position.set(
-        box.bucket * bucketW + bucketW / 2,
-        up ? ZERO_Y + h / 2 : ZERO_Y - h / 2,
-        box.lane * LANE_GAP,
+        mark.domainRank * (MARK_W + 2) + MARK_W / 2,
+        below ? ZERO_Y - height / 2 : ZERO_Y + height / 2,
+        Math.max(0, projectedDomains.indexOf(mark.domain)) * LANE_GAP,
       );
-      dummy.scale.set(bucketW * 0.92, h, LANE_D * 0.9);
+      dummy.scale.set(MARK_W, height, LANE_D * 0.88);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, up ? REGRESSION : IMPROVEMENT);
+      mesh.setMatrixAt(index, dummy.matrix);
+      const color = colorFor(mark);
+      mesh.setColorAt(
+        index,
+        mark.evidenceId === selectedEvidenceId
+          ? color.clone().lerp(selectedColor, 0.32)
+          : color,
+      );
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [boxes, grid.maxAbsDelta, scale, bucketW]);
+  }, [projection, selectedEvidenceId]);
+
+  useFrame(() => {
+    const mesh = ref.current;
+    if (!mesh || projection.marks.length === 0) return;
+    const targetIndex = Math.max(0, projection.marks.findIndex(
+      (mark) => mark.evidenceId !== selectedEvidenceId,
+    ));
+    mesh.getMatrixAt(targetIndex, dummy.matrix);
+    pickPoint.setFromMatrixPosition(dummy.matrix);
+    mesh.localToWorld(pickPoint).project(camera);
+    const host = gl.domElement.ownerDocument.getElementById("trace-camera");
+    if (!host) return;
+    host.dataset.diffPickX = String((pickPoint.x + 1) * gl.domElement.clientWidth / 2);
+    host.dataset.diffPickY = String((1 - pickPoint.y) * gl.domElement.clientHeight / 2);
+    host.dataset.diffPickEvidence = projection.marks[targetIndex].evidenceId;
+  });
+
+  useEffect(() => () => {
+    const host = gl.domElement.ownerDocument.getElementById("trace-camera");
+    if (!host) return;
+    delete host.dataset.diffPickX;
+    delete host.dataset.diffPickY;
+    delete host.dataset.diffPickEvidence;
+  }, [gl]);
 
   return (
     <group>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[TIME_W / 2, -0.06, worldDepth / 2 - LANE_GAP / 2]}
+        position={[width / 2, -0.06, worldDepth / 2 - LANE_GAP / 2]}
       >
-        <planeGeometry args={[TIME_W + 26, worldDepth + 18]} />
+        <planeGeometry args={[width + 16, worldDepth + 16]} />
         <meshBasicMaterial color={GROUND} />
       </mesh>
-      {/* Neutral zero plane: the diverging midpoint is gray, never a hue. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[TIME_W / 2, ZERO_Y, worldDepth / 2 - LANE_GAP / 2]}
+        position={[width / 2, ZERO_Y, worldDepth / 2 - LANE_GAP / 2]}
       >
-        <planeGeometry args={[TIME_W + 8, worldDepth + 8]} />
+        <planeGeometry args={[width + 8, worldDepth + 8]} />
         <meshBasicMaterial
           color={DIVERGING.neutral}
           transparent
@@ -100,32 +119,44 @@ export function DiffScene({
       </mesh>
       <instancedMesh
         ref={ref}
-        args={[undefined, undefined, Math.max(boxes.length, 1)]}
+        args={[undefined, undefined, Math.max(projection.marks.length, 1)]}
+        count={projection.marks.length}
         frustumCulled={false}
+        onClick={(event: ThreeEvent<MouseEvent>) => {
+          event.stopPropagation();
+          if (event.instanceId === undefined) return;
+          const mark = projection.marks[event.instanceId];
+          if (mark) onSelect(mark);
+        }}
       >
         <boxGeometry />
         <meshLambertMaterial />
       </instancedMesh>
-      {grid.lanes.map((lane, i) => (
-        <Billboard key={lane.name} position={[-3, ZERO_Y, i * LANE_GAP]}>
-          <Text fontSize={1.1} color={INK_SECONDARY} anchorX="right">
-            {lane.name}
-          </Text>
-        </Billboard>
-      ))}
-      <Billboard position={[TIME_W / 2, ZERO_Y + DIFF_H + 3, worldDepth / 2]}>
-        <Text fontSize={1.2} color={INK_SECONDARY} anchorX="center">
-          up · red = B slower (regression) — down · blue = B faster — aligned at nav start
+      {domains.map((domain, index) => {
+        const mark = projection.marks.find((candidate) => candidate.domain === domain);
+        return (
+          <Billboard key={domain} position={[-3, ZERO_Y, index * LANE_GAP]}>
+            <Text fontSize={1.05} color={INK_SECONDARY} anchorX="right">
+              {domain} · {mark?.unit ?? "unknown"}
+            </Text>
+          </Billboard>
+        );
+      })}
+      <Billboard position={[width / 2, ZERO_Y + MARK_H + 4, worldDepth / 2]}>
+        <Text fontSize={1.15} color={INK_SECONDARY} anchorX="center">
+          ranked findings · height is normalized only within each domain and unit
         </Text>
       </Billboard>
-      <Text
-        position={[TIME_W + 4, ZERO_Y, worldDepth / 2]}
-        fontSize={1}
-        color={INK_MUTED}
-        anchorX="left"
-      >
-        0
-      </Text>
     </group>
   );
+}
+
+function colorFor(mark: FindingProjectionMark): THREE.Color {
+  if (mark.status === "regression" || mark.status === "added") {
+    return new THREE.Color(DIVERGING.regression);
+  }
+  if (mark.status === "improvement" || mark.status === "removed") {
+    return new THREE.Color(DIVERGING.improvement);
+  }
+  return new THREE.Color(DIVERGING.neutral);
 }

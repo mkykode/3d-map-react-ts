@@ -6,17 +6,33 @@ import type {
   ColumnarLane,
   DiffGrid,
   DiffLane,
+  NetworkRequestInfo,
   ParsedTraceModel,
   RhythmGrid,
 } from "./types";
 
 const CAT_COUNT = CATEGORIES.length;
 
-/**
- * Sum self-time per bucket per lane, attributing each event's self time
- * linearly across the buckets its span covers. Self-time attribution keeps
- * parent/child work from double counting.
- */
+export function exclusiveTimeInWindow(
+  lane: ColumnarLane,
+  index: number,
+  t0: number,
+  t1: number,
+): number {
+  let total = 0;
+  const first = lane.exclusiveOffsets[index];
+  const end = lane.exclusiveOffsets[index + 1];
+  for (let i = first; i < end; i++) {
+    total += Math.max(
+      0,
+      Math.min(lane.exclusiveEnds[i], t1) -
+        Math.max(lane.exclusiveStarts[i], t0),
+    );
+  }
+  return total;
+}
+
+/** Sum exact exclusive spans per bucket so parent/child work never overlaps. */
 export function bucketize(
   lanes: ColumnarLane[],
   t0: number,
@@ -29,45 +45,35 @@ export function bucketize(
   const result: BucketedLane[] = lanes.map((lane) => {
     const busy = new Float32Array(bucketCount);
     const perCat = new Float32Array(bucketCount * CAT_COUNT);
-    const { starts, durs, selfTimes, catIds } = lane;
+    const { starts, durs, catIds } = lane;
 
-    for (let i = 0; i < starts.length; i++) {
+    const { lo, hi } = windowSlice(lane, t0, t1);
+    for (let i = lo; i < hi; i++) {
       const start = starts[i];
       const end = start + durs[i];
       if (end <= t0 || start >= t1) continue;
-      const self = selfTimes[i];
-      if (self <= 0) continue;
-
-      const clampedStart = Math.max(start, t0);
-      const clampedEnd = Math.min(Math.max(end, start + 1e-6), t1);
-      const span = Math.max(end - start, 1e-6);
-      // self time per ms of span, spread across covered buckets
-      const density = (self * (clampedEnd - clampedStart)) / span;
-
-      const firstBucket = Math.min(
-        bucketCount - 1,
-        Math.floor((clampedStart - t0) / bucketMs),
-      );
-      const lastBucket = Math.min(
-        bucketCount - 1,
-        Math.floor((clampedEnd - t0 - 1e-9) / bucketMs),
-      );
       const cat = catIds[i];
-
-      if (firstBucket === lastBucket) {
-        busy[firstBucket] += density;
-        perCat[firstBucket * CAT_COUNT + cat] += density;
-      } else {
-        const covered = clampedEnd - clampedStart;
+      const intervalEnd = lane.exclusiveOffsets[i + 1];
+      for (let interval = lane.exclusiveOffsets[i]; interval < intervalEnd; interval++) {
+        const clampedStart = Math.max(lane.exclusiveStarts[interval], t0);
+        const clampedEnd = Math.min(lane.exclusiveEnds[interval], t1);
+        if (clampedEnd <= clampedStart) continue;
+        const firstBucket = Math.min(
+          bucketCount - 1,
+          Math.floor((clampedStart - t0) / bucketMs),
+        );
+        const lastBucket = Math.min(
+          bucketCount - 1,
+          Math.floor((clampedEnd - t0 - 1e-9) / bucketMs),
+        );
         for (let b = firstBucket; b <= lastBucket; b++) {
           const bStart = t0 + b * bucketMs;
           const bEnd = bStart + bucketMs;
           const overlap =
             Math.min(clampedEnd, bEnd) - Math.max(clampedStart, bStart);
           if (overlap <= 0) continue;
-          const share = (density * overlap) / covered;
-          busy[b] += share;
-          perCat[b * CAT_COUNT + cat] += share;
+          busy[b] += overlap;
+          perCat[b * CAT_COUNT + cat] += overlap;
         }
       }
     }
@@ -92,9 +98,8 @@ export function bucketize(
 }
 
 /**
- * Aggregate self/total/count per event name inside [t0, t1]. Events cut by a
- * window edge contribute only their overlapping share, so a narrow brush
- * inside a long task reports the windowed cost, not the whole task.
+ * Aggregate self/total/count per event name inside [t0, t1]. Self uses exact
+ * exclusive spans; total uses the clipped inclusive event duration.
  */
 export function bottomUp(
   lanes: ColumnarLane[],
@@ -103,10 +108,10 @@ export function bottomUp(
 ): BottomUpRow[] {
   const rows = new Map<number, BottomUpRow>();
   for (const lane of lanes) {
-    const { starts, durs, selfTimes, nameIds, catIds } = lane;
-    for (let i = 0; i < starts.length; i++) {
+    const { starts, durs, nameIds, catIds } = lane;
+    const { lo, hi } = windowSlice(lane, t0, t1);
+    for (let i = lo; i < hi; i++) {
       const start = starts[i];
-      if (start >= t1) break;
       const dur = durs[i];
       const end = start + dur;
       const frac =
@@ -122,7 +127,7 @@ export function bottomUp(
         row = { nameId: id, catId: catIds[i], self: 0, total: 0, count: 0 };
         rows.set(id, row);
       }
-      row.self += selfTimes[i] * frac;
+      row.self += exclusiveTimeInWindow(lane, i, t0, t1);
       row.total += dur * frac;
       row.count += 1;
     }
@@ -142,32 +147,110 @@ export function rhythmFold(
   const cellsPerSecond = Math.round(1000 / cellMs);
   const seconds = Math.max(1, Math.ceil(rangeMs / 1000));
   const cells = new Float32Array(seconds * cellsPerSecond);
-  const { starts, durs, selfTimes } = lane;
+  const { starts } = lane;
 
   for (let i = 0; i < starts.length; i++) {
-    const self = selfTimes[i];
-    if (self <= 0) continue;
-    const start = starts[i];
-    const end = start + Math.max(durs[i], 1e-6);
-    const density = self / (end - start);
-    // Walk the span in cell-sized steps, attributing density per overlap.
-    let cursor = start;
-    while (cursor < end) {
-      const cellIndex = Math.floor(cursor / cellMs);
-      const cellEnd = (cellIndex + 1) * cellMs;
-      const overlap = Math.min(end, cellEnd) - cursor;
-      const second = Math.floor((cellIndex * cellMs) / 1000);
-      const offsetCell = cellIndex % cellsPerSecond;
-      if (second < seconds) {
-        cells[second * cellsPerSecond + offsetCell] += density * overlap;
+    const intervalEnd = lane.exclusiveOffsets[i + 1];
+    for (let interval = lane.exclusiveOffsets[i]; interval < intervalEnd; interval++) {
+      const end = lane.exclusiveEnds[interval];
+      let cursor = lane.exclusiveStarts[interval];
+      while (cursor < end) {
+        const cellIndex = Math.floor(cursor / cellMs);
+        const cellEnd = (cellIndex + 1) * cellMs;
+        const overlap = Math.min(end, cellEnd) - cursor;
+        const second = Math.floor((cellIndex * cellMs) / 1000);
+        const offsetCell = cellIndex % cellsPerSecond;
+        if (second < seconds) {
+          cells[second * cellsPerSecond + offsetCell] += overlap;
+        }
+        cursor = cellEnd;
       }
-      cursor = cellEnd;
     }
   }
 
   let maxBusy = 0;
   for (const v of cells) if (v > maxBusy) maxBusy = v;
   return { cells, seconds, cellsPerSecond, cellMs, maxBusy };
+}
+
+/**
+ * Index range [lo, hi) of lane entries that can overlap [t0, t1]. Uses the
+ * lane's maxDur to bound the look-back, so zoomed views cull in O(log n).
+ */
+export function windowSlice(
+  lane: ColumnarLane,
+  t0: number,
+  t1: number,
+): { lo: number; hi: number } {
+  const { starts } = lane;
+  const n = starts.length;
+  const lowerBound = (value: number): number => {
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid] < value) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  // Events starting before t0 can still overlap if they run long enough.
+  const lo = lowerBound(t0 - lane.meta.maxDur);
+  const hi = lowerBound(t1);
+  return { lo, hi };
+}
+
+export interface StallBand {
+  start: number;
+  end: number;
+}
+
+/**
+ * Windows where the main thread is nearly idle while at least one
+ * render-blocking request is still in flight: the page is waiting on the
+ * network, not on the CPU.
+ */
+export function computeStalls(
+  mainLane: ColumnarLane | undefined,
+  requests: NetworkRequestInfo[],
+  t0: number,
+  t1: number,
+  bucketMs = 4,
+  minBandMs = 20,
+): StallBand[] {
+  if (!mainLane) return [];
+  const blocking = requests.filter((r) => r.renderBlocking);
+  if (blocking.length === 0) return [];
+
+  const bucketCount = Math.max(1, Math.ceil((t1 - t0) / bucketMs));
+  const grid = bucketize([mainLane], t0, t1, bucketCount);
+  const busy = grid.lanes[0].busy;
+  const idleThreshold = grid.bucketMs * 0.15;
+
+  const inFlight = new Uint8Array(bucketCount);
+  for (const request of blocking) {
+    const first = Math.max(0, Math.floor((request.start - t0) / grid.bucketMs));
+    const last = Math.min(
+      bucketCount - 1,
+      Math.floor((request.end - t0) / grid.bucketMs),
+    );
+    for (let b = first; b <= last; b++) inFlight[b] = 1;
+  }
+
+  const bands: StallBand[] = [];
+  let bandStart = -1;
+  for (let b = 0; b <= bucketCount; b++) {
+    const stalled =
+      b < bucketCount && inFlight[b] === 1 && busy[b] < idleThreshold;
+    if (stalled && bandStart < 0) bandStart = b;
+    if (!stalled && bandStart >= 0) {
+      const start = t0 + bandStart * grid.bucketMs;
+      const end = t0 + b * grid.bucketMs;
+      if (end - start >= minBandMs) bands.push({ start, end });
+      bandStart = -1;
+    }
+  }
+  return bands;
 }
 
 /**

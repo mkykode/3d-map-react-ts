@@ -30,11 +30,13 @@ export function CityScene({ model }: { model: ParsedTraceModel }) {
   const scale = useAppStore((s) => s.scale);
   const selection = useAppStore((s) => s.selection);
   const setSelection = useAppStore((s) => s.setSelection);
+  const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const setHover = useHoverStore((s) => s.setHover);
   const [t0, t1] = windowOf(model, brush);
 
   const { buildings, folded } = useMemo(() => {
-    const rows = bottomUp(model.lanes, t0, t1).filter((r) => r.self > 0);
+    const visible = model.lanes.filter((l) => !hiddenLanes.has(l.meta.id));
+    const rows = bottomUp(visible, t0, t1).filter((r) => r.self > 0);
     const kept = rows.slice(0, MAX_BUILDINGS);
     const rects = squarify(
       kept.map((r) => Math.max(r.count, 1)),
@@ -46,7 +48,7 @@ export function CityScene({ model }: { model: ParsedTraceModel }) {
       buildings: kept.map((row, i) => ({ row, rect: rects[i], maxSelf })),
       folded: rows.length - kept.length,
     };
-  }, [model, t0, t1]);
+  }, [model, hiddenLanes, t0, t1]);
 
   const ref = useRef<THREE.InstancedMesh>(null);
 

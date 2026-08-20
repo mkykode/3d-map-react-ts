@@ -8,6 +8,7 @@ export function DetailsPanel() {
   const model = useAppStore((s) => s.model);
   const selection = useAppStore((s) => s.selection);
   const brush = useAppStore((s) => s.brush);
+  const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const setSelection = useAppStore((s) => s.setSelection);
 
   const content = useMemo(() => {
@@ -18,8 +19,18 @@ export function DetailsPanel() {
     if (selection.kind === "entry") {
       const lane = model.lanes[selection.lane];
       const i = selection.idx;
+      const callFrameId = lane.callFrameIds[i];
+      const callFrame = callFrameId > 0 ? model.callFrames[callFrameId - 1] : null;
+      const functionName = callFrame
+        ? model.functionNames[callFrame.functionNameId]
+        : null;
+      const sourceUrl = callFrame ? model.scriptUrls[callFrame.urlId] : null;
+      const sourcePosition =
+        callFrame && callFrame.lineNumber >= 0 && callFrame.columnNumber >= 0
+          ? `:${callFrame.lineNumber + 1}:${callFrame.columnNumber + 1}`
+          : "";
       return {
-        title: model.names[lane.nameIds[i]],
+        title: functionName ?? model.names[lane.nameIds[i]],
         catId: lane.catIds[i],
         rows: [
           ["Lane", lane.meta.name],
@@ -27,14 +38,21 @@ export function DetailsPanel() {
           ["Duration", formatMs(lane.durs[i])],
           ["Self time", formatMs(lane.selfTimes[i])],
           ["Stack depth", String(lane.depths[i])],
+          ...(callFrame
+            ? [
+                ["Source", `${sourceUrl || `script ${callFrame.scriptId}`}${sourcePosition}`],
+              ]
+            : []),
         ] as [string, string][],
       };
     }
 
     const [t0, t1] = windowOf(model, brush);
-    const row = bottomUp(model.lanes, t0, t1).find(
-      (r) => r.nameId === selection.nameId,
-    );
+    const row = bottomUp(
+      model.lanes.filter((l) => !hiddenLanes.has(l.meta.id)),
+      t0,
+      t1,
+    ).find((r) => r.nameId === selection.nameId);
     if (!row) return null;
     return {
       title: model.names[selection.nameId],
@@ -46,7 +64,7 @@ export function DetailsPanel() {
         ["Window", `${formatMs(t0)} – ${formatMs(t1)}`],
       ] as [string, string][],
     };
-  }, [model, selection, brush]);
+  }, [model, selection, brush, hiddenLanes]);
 
   if (!content) return null;
   const cat = CATEGORIES[content.catId];
