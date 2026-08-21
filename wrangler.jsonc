@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "trace-topography",
   "compatibility_date": "2026-08-20",
+  "routes": [{ "pattern": "trace.monkeykode.com", "custom_domain": true }],
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
