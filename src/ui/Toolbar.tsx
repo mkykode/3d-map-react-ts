@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { PAN_PLANE_AXES, PAN_PLANES } from "../scene/cameraNavigation";
 import {
   CAMERA_CONTROL_DESCRIPTORS,
@@ -37,6 +37,10 @@ export function Toolbar() {
   } = useAppStore();
   const primaryInput = useRef<HTMLInputElement>(null);
   const secondaryInput = useRef<HTMLInputElement>(null);
+  // Collapsed by default on phone widths so the header never buries the scene.
+  const [controlsOpen, setControlsOpen] = useState(
+    () => window.matchMedia("(min-width: 701px)").matches,
+  );
 
   return (
     <header className="toolbar">
@@ -57,9 +61,21 @@ export function Toolbar() {
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="toolbar-toggle"
+          aria-label="Toolbar controls"
+          aria-expanded={controlsOpen}
+          aria-controls="toolbar-controls"
+          onClick={() => setControlsOpen((open) => !open)}
+          title={controlsOpen ? "Hide controls" : "Show controls"}
+        >
+          <span aria-hidden="true">{controlsOpen ? "▴" : "▾"}</span>
+        </button>
       </div>
 
-      {view !== "vitals" && (
+      <div id="toolbar-controls" className="toolbar-controls">
+      {controlsOpen && view !== "vitals" && (
         <div className="toolbar-group">
         <fieldset className="segmented">
           <legend className="sr-only">Camera</legend>
@@ -172,6 +188,7 @@ export function Toolbar() {
         </div>
       )}
 
+      {controlsOpen && (
       <div className="toolbar-group">
         {model && (
           <span className="stats">
@@ -216,6 +233,8 @@ export function Toolbar() {
             e.target.value = "";
           }}
         />
+      </div>
+      )}
       </div>
     </header>
   );

@@ -1063,6 +1063,33 @@ h3 {
   gap: 4px;
 }
 
+/* wrapper stays layout-transparent so the groups remain header flex items */
+.toolbar-controls {
+  display: contents;
+}
+
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--control);
+  box-shadow: inset 0 0 0 0.5px var(--hairline);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.toolbar-toggle:hover {
+  background: var(--control-hover);
+  color: var(--ink);
+}
+
 @media (max-width: 620px) {
   .toolbar-group {
     width: 100%;

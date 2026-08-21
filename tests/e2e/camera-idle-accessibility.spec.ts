@@ -50,6 +50,11 @@ test("camera controls provide keyboard and 375px non-drag parity", async ({
 }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await openWorkspace(page);
+  // The toolbar controls collapse by default on phone widths.
+  const toolbarToggle = page.getByRole("button", { name: "Toolbar controls" });
+  await expect(toolbarToggle).toHaveAttribute("aria-expanded", "false");
+  await toolbarToggle.click();
+  await expect(toolbarToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator(".stats")).toContainText("events", {
     timeout: 15_000,
   });
