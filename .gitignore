@@ -29,3 +29,6 @@ data/
 .lavish/
 # Goal pipeline state
 .mk-goal/
+
+# local design references, never published
+.claude/assets/
