@@ -1,6 +1,6 @@
 # Trace Topography
 
-**Live demo:** <https://trace-topography.jull-561.workers.dev>
+**Live demo:** <https://trace.monkeykode.com>
 
 A 3D instrument for Chrome DevTools performance traces. It parses traces with
 Chrome DevTools' own trace engine, then spends the third dimension on the
@@ -21,6 +21,7 @@ chart.
 | **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
 | **City** | Who costs the most overall? | footprint calls · height self time |
 | **Diff** | What regressed between two traces? | signed Δ busy, aligned at navigation start |
+| **Vitals** | Which lab milestones does the trace prove? | 2D workspace: marker-backed LCP/FCP/DCL/Load, with unsupported metrics explicitly unavailable |
 
 Overlays: web-vitals beacons (Nav/FP/FCP/LCP/DCL/Load), long-task markers
 (red bars over the main thread for tasks &gt;50 ms, tinted in the canyon too),
@@ -61,12 +62,12 @@ A bundled demo trace loads automatically. Load your own with **Load trace**
 Puppeteer/Playwright tracing). **Compare…** loads a second trace for diff
 mode.
 
-Controls: keys `1-5` switch views · `orbit/top/side` camera presets ·
-`W/S` zoom, `A/D` + arrow keys pan (in top/side, left-drag pans as well) ·
-drag the overview strip to select a window · `Z` zoom to window · `T`
-tracks · `I` inspector · click an event for details and causality arcs ·
-`Esc` clears the selection. View, camera preset, scale, and brush are
-URL-shareable via the hash.
+Controls: `Alt+1..6` (Option on macOS) switch views · `orbit/top/side`
+camera presets · `W/S` zoom, `A/D` + arrow keys pan (in top/side, left-drag
+pans as well) · drag the overview strip to select a window · `Alt+Z` zoom
+to window · `Alt+T` tracks · `Alt+I` inspector · click an event for details
+and causality arcs · `Esc` clears the selection. View, camera preset,
+scale, and brush are URL-shareable via the hash.
 
 ## Architecture
 
