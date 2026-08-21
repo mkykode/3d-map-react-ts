@@ -30,13 +30,16 @@ import { ExperimentImport } from "./ui/ExperimentImport";
 import type { FindingId } from "./domain/analysis";
 import type { RegressionProjection } from "./engine/findingContract";
 
+// Keyed by KeyboardEvent.code: Option-modified keys produce remapped
+// characters on macOS (Option+1 is "¡"), so Alt shortcuts must match the
+// physical key position, not the produced character.
 const VIEW_KEYS: Record<string, ViewId> = {
-  "1": "canyon",
-  "2": "terrain",
-  "3": "rhythm",
-  "4": "city",
-  "5": "diff",
-  "6": "vitals",
+  Digit1: "canyon",
+  Digit2: "terrain",
+  Digit3: "rhythm",
+  Digit4: "city",
+  Digit5: "diff",
+  Digit6: "vitals",
 };
 
 function App() {
@@ -98,15 +101,14 @@ function App() {
         return;
       }
       if (!event.altKey) return;
-      const nextView = VIEW_KEYS[event.key];
+      const nextView = VIEW_KEYS[event.code];
       if (nextView) useAppStore.getState().setView(nextView);
-      const key = event.key.toLowerCase();
-      if (key === "z") {
+      if (event.code === "KeyZ") {
         const state = useAppStore.getState();
         if (state.brush) state.setZoomed(!state.zoomed);
       }
-      if (key === "i") useAppStore.getState().toggleHud();
-      if (key === "t") useAppStore.getState().toggleTrackPicker();
+      if (event.code === "KeyI") useAppStore.getState().toggleHud();
+      if (event.code === "KeyT") useAppStore.getState().toggleTrackPicker();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
