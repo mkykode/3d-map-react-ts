@@ -1,11 +1,61 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { bucketize } from "../engine/aggregate";
 import { formatMs } from "../scene/layout";
 import { useAppStore } from "../state/store";
 import { useSceneViewport } from "../scene/viewportState";
 import { TIME_W } from "../scene/layout";
+import type { Vector3Tuple } from "../scene/cameraActions";
 
 const OVERVIEW_BUCKETS = 160;
+
+/**
+ * Normalized [start, end] of the camera footprint along time. The footprint
+ * store publishes a fresh array on every camera frame; quantizing to 0.1%
+ * and comparing shallowly keeps sub-pixel camera motion from re-rendering
+ * the overview.
+ */
+function visibleFraction(footprint: readonly Vector3Tuple[]): [number, number] | null {
+  if (footprint.length === 0) return null;
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const point of footprint) {
+    if (point[0] < min) min = point[0];
+    if (point[0] > max) max = point[0];
+  }
+  return [Math.round((min / TIME_W) * 1000) / 1000, Math.round((max / TIME_W) * 1000) / 1000];
+}
+
+/** The 160 activity bars depend only on the model and the window, never on the camera. */
+const OverviewBars = memo(function OverviewBars({
+  busy,
+  max,
+  rangeMs,
+  lo,
+  hi,
+}: {
+  busy: Float32Array;
+  max: number;
+  rangeMs: number;
+  lo: number;
+  hi: number;
+}) {
+  return (
+    <>
+      {Array.from(busy).map((v, i) => {
+        const ms = ((i + 0.5) / OVERVIEW_BUCKETS) * rangeMs;
+        const inWindow = ms >= lo && ms <= hi;
+        return (
+          <div
+            key={ms}
+            className={inWindow ? "bar in" : "bar"}
+            style={{ height: `${Math.max((v / max) * 100, 2)}%` }}
+          />
+        );
+      })}
+    </>
+  );
+});
 
 /**
  * The profiler overview strip: drag across the mini activity chart to select
@@ -17,7 +67,7 @@ export function BrushBar() {
   const setBrush = useAppStore((s) => s.setBrush);
   const zoomed = useAppStore((s) => s.zoomed);
   const setZoomed = useAppStore((s) => s.setZoomed);
-  const footprint = useSceneViewport((s) => s.footprint);
+  const visible = useSceneViewport(useShallow((s) => visibleFraction(s.footprint)));
   const view = useAppStore((s) => s.view);
   const stripRef = useRef<HTMLDivElement>(null);
   // The ref is the source of truth (pointer events can outrun renders);
@@ -40,7 +90,7 @@ export function BrushBar() {
   if (!model || !overview) return null;
   const t0 = brush?.[0] ?? 0;
   const t1 = brush?.[1] ?? model.rangeMs;
-  const footprintRange = (view === "canyon" || view === "terrain") && footprint.length ? [Math.min(...footprint.map((p) => p[0])) / TIME_W, Math.max(...footprint.map((p) => p[0])) / TIME_W] : null;
+  const footprintRange = view === "canyon" || view === "terrain" ? visible : null;
   const extentStart = view === "terrain" || zoomed ? t0 : 0;
   const extentEnd = view === "terrain" || zoomed ? t1 : model.rangeMs;
 
@@ -109,19 +159,13 @@ export function BrushBar() {
         onLostPointerCapture={cancelDrag}
       >
         {footprintRange && <span className="overview-viewport" aria-hidden="true" style={{ left: `${(extentStart + footprintRange[0] * (extentEnd - extentStart)) / model.rangeMs * 100}%`, width: `${(footprintRange[1] - footprintRange[0]) * (extentEnd - extentStart) / model.rangeMs * 100}%` }} />}
-        {Array.from(overview.busy).map((v, i) => {
-          const ms = ((i + 0.5) / OVERVIEW_BUCKETS) * model.rangeMs;
-          const inWindow = dragRange
-            ? ms >= dragRange[0] && ms <= dragRange[1]
-            : ms >= t0 && ms <= t1;
-          return (
-            <div
-              key={ms}
-              className={inWindow ? "bar in" : "bar"}
-              style={{ height: `${Math.max((v / overview.max) * 100, 2)}%` }}
-            />
-          );
-        })}
+        <OverviewBars
+          busy={overview.busy}
+          max={overview.max}
+          rangeMs={model.rangeMs}
+          lo={dragRange ? dragRange[0] : t0}
+          hi={dragRange ? dragRange[1] : t1}
+        />
       </div>
       <div className="brush-controls">
         <input

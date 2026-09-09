@@ -20,6 +20,7 @@ import {
 import { TimeRuler } from "./TimeRuler";
 import { VitalsBeacons } from "./VitalsBeacons";
 import { ScreenshotStrip } from "./ScreenshotStrip";
+import { TERRAIN_STRIP_Z } from "./sceneBounds";
 import { FrameFloor } from "./FrameFloor";
 import { StallBands } from "./StallBands";
 import { BoxFeedback } from "./BoxFeedback";
@@ -122,10 +123,10 @@ export function TerrainScene({ model }: { model: ParsedTraceModel }) {
         t0={t0}
         t1={t1}
         y={TERRAIN_H + 6}
-        z={-8}
+        z={TERRAIN_STRIP_Z}
       />
       <MemoryRiver model={model} t0={t0} t1={t1} z={-5} />
-      <ContactShadows key={`${t0}-${t1}-${scale}-${hiddenLanes.size}`} position={[TIME_W / 2, -0.1, worldDepth / 2]} scale={Math.max(TIME_W, worldDepth) + 12} far={TERRAIN_H + 1} opacity={0.35} blur={2} resolution={256} frames={1} />
+      <ContactShadows key={`${model.boundsMinUs}-${t0}-${t1}-${scale}-${visibleLanes.map((lane) => lane.meta.id).join(",")}`} position={[TIME_W / 2, -0.1, worldDepth / 2]} scale={Math.max(TIME_W, worldDepth) + 12} far={TERRAIN_H + 1} opacity={0.35} blur={2} resolution={256} frames={1} />
     </group>
   );
 }
@@ -284,7 +285,7 @@ function MemoryRiver({
   if (!points) return null;
   return (
     <group>
-      <mesh><bufferGeometry><bufferAttribute attach="attributes-position" args={[area, 3]} /></bufferGeometry><meshBasicMaterial color="#3987e5" opacity={0.22} transparent side={THREE.DoubleSide} depthWrite={false} fog={false} /></mesh>
+      <mesh frustumCulled={false}><bufferGeometry><bufferAttribute attach="attributes-position" args={[area, 3]} /></bufferGeometry><meshBasicMaterial color="#3987e5" opacity={0.22} transparent side={THREE.DoubleSide} depthWrite={false} fog={false} /></mesh>
       <Line points={points} color="#86b6ef" lineWidth={2} fog={false} />
       <ScreenLabel id="heap" position={[points[points.length - 1].x + 4, points[points.length - 1].y, z]} align="left" priority={35}>
           JS heap

@@ -35,24 +35,25 @@ export function ShaderWarmup({ token }: { token: string }) {
     };
   }, [gl, scene, camera, invalidate, token]);
 
+  // Every data mesh calls setColorAt, which adds USE_INSTANCING_COLOR to the
+  // program key, so the probes carry an instanceColor attribute too or they
+  // would warm a program nothing uses.
   return (
     <group name="shader-warmup" raycast={() => {}}>
-      <instancedMesh args={[undefined, undefined, 0]} frustumCulled={false}>
-        <boxGeometry />
-        <DataMaterial names status />
-      </instancedMesh>
-      <instancedMesh args={[undefined, undefined, 0]} frustumCulled={false}>
-        <boxGeometry />
-        <DataMaterial names />
-      </instancedMesh>
-      <instancedMesh args={[undefined, undefined, 0]} frustumCulled={false}>
-        <boxGeometry />
-        <DataMaterial timeRanges />
-      </instancedMesh>
-      <instancedMesh args={[undefined, undefined, 0]} frustumCulled={false}>
-        <boxGeometry />
-        <DataMaterial />
-      </instancedMesh>
+      {PROBE_VARIANTS.map((variant) => (
+        <instancedMesh key={variant.key} args={[undefined, undefined, 0]} frustumCulled={false}>
+          <boxGeometry />
+          <instancedBufferAttribute attach="instanceColor" args={[new Float32Array(3), 3]} />
+          <DataMaterial {...variant.props} />
+        </instancedMesh>
+      ))}
     </group>
   );
 }
+
+const PROBE_VARIANTS: { key: string; props: { names?: boolean; status?: boolean; timeRanges?: boolean } }[] = [
+  { key: "canyon", props: { names: true, status: true } },
+  { key: "city", props: { names: true } },
+  { key: "rhythm", props: { timeRanges: true } },
+  { key: "plain", props: {} },
+];

@@ -70,7 +70,7 @@ export function CityScene({ model }: { model: ParsedTraceModel }) {
       min: [rect.x + rect.w * 0.02, 0, rect.y + rect.h * 0.02],
       max: [rect.x + rect.w * 0.98, Math.max(0.001, scaleHeight(row.self, maxSelf, CITY_H, scale)), rect.y + rect.h * 0.98],
     }} />)}
-    <ContactShadows key={`${t0}-${t1}-${scale}-${hiddenLanes.size}`} position={[CITY_SIZE / 2, -0.08, CITY_SIZE / 2]} scale={CITY_SIZE + 8} far={CITY_H + 2} opacity={0.45} blur={2} resolution={256} frames={1} />
+    <ContactShadows key={`${model.boundsMinUs}-${t0}-${t1}-${scale}-${model.lanes.filter((lane) => !hiddenLanes.has(lane.meta.id)).map((lane) => lane.meta.id).join(",")}`} position={[CITY_SIZE / 2, -0.08, CITY_SIZE / 2]} scale={CITY_SIZE + 8} far={CITY_H + 2} opacity={0.45} blur={2} resolution={256} frames={1} />
     {!buildings.length && <ScreenLabel id="city-empty" position={[CITY_SIZE / 2, 2, CITY_SIZE / 2]} priority={80}>No activity in this window</ScreenLabel>}
   </group>;
 }

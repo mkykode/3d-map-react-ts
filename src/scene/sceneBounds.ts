@@ -7,6 +7,8 @@ import { traceLayout } from "./traceLayout";
 export const CITY_SIZE = 70;
 export const CITY_X = 45;
 export const RHYTHM_CELL_MS = 10;
+/** Terrain's screenshot filmstrip sits in front of the first lane; fit bounds must include it. */
+export const TERRAIN_STRIP_Z = -8;
 export function rhythmLayout(rangeMs: number) {
   const totalSeconds = Math.max(1, Math.ceil(rangeMs / 1000));
   const secondsPerColumn = Math.max(1, Math.ceil(totalSeconds / 256));
@@ -27,5 +29,5 @@ export function sceneBounds(model: ParsedTraceModel | null, view: ViewId, hidden
   }
   const lanes = model?.lanes.filter((l) => !hidden.has(l.meta.id)) ?? [];
   if (view === "canyon") return traceLayout(lanes, preset).bounds;
-  return { min: [0, 0, -5], max: [TIME_W, 22, Math.max(7, lanes.length * LANE_GAP)] };
+  return { min: [0, 0, TERRAIN_STRIP_Z - 1], max: [TIME_W, 22, Math.max(7, lanes.length * LANE_GAP)] };
 }
