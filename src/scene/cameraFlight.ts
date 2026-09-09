@@ -11,6 +11,7 @@ import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
 import * as THREE from "three";
+import { CAMERA_FOV, MAX_FLIGHT_FOV } from "./cameraLimits";
 import type {
   CameraActionPreset,
   SerializableCameraPose,
@@ -25,12 +26,22 @@ export interface CameraFlightDestination {
 
 export interface CameraFlightController {
   renderedOrthoMode: "top" | "side" | null;
+  projectionPose: CameraFlightDestination | null;
   start: (destination: CameraFlightDestination) => void;
   cancel: () => void;
   land: (controls: CameraControlsHandle) => boolean;
   finishCameraSwap: () => void;
   isFlying: () => boolean;
   isTransitioning: () => boolean;
+}
+
+/** Dolly back when matching ortho scale would otherwise require a fisheye FOV. */
+export function perspectiveLanding(next: CameraFlightDestination, viewportHeight: number) {
+  const offset = next.position.clone().sub(next.target);
+  const height = viewportHeight / (next.zoom ?? 1);
+  const fov = Math.min(MAX_FLIGHT_FOV, THREE.MathUtils.radToDeg(2 * Math.atan(height / (2 * offset.length()))));
+  const distance = height / (2 * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+  return { position: offset.setLength(distance).add(next.target), fov };
 }
 
 export function cameraLandingOutcome(
@@ -65,6 +76,7 @@ export function useCameraFlight(options: {
     invalidate,
   } = options;
   const [orthoMode, setOrthoMode] = useState<"top" | "side" | null>(null);
+  const [projectionPose, setProjectionPose] = useState<CameraFlightDestination | null>(null);
   const size = useThree((s) => s.size);
   const renderedOrthoMode =
     reducedMotion && preset !== "orbit" ? preset : orthoMode;
@@ -114,6 +126,7 @@ export function useCameraFlight(options: {
       destination.current = null;
       if (cameraLandingOutcome(preset, renderedOrthoMode) === "swap") {
         landingPending.current = true;
+        setProjectionPose(next);
         publishPose(controls, true);
         setOrthoMode(preset);
       } else {
@@ -134,11 +147,14 @@ export function useCameraFlight(options: {
     const controls = controlsRef.current;
     if (reducedMotion) {
       destination.current = null;
-      if (preset === "top" || preset === "side") {
-        landingPending.current = false;
-      } else if (controls) {
+      landingPending.current = false;
+      if (controls) {
         controls.object.position.copy(position);
         controls.target.copy(center);
+        if (controls.object instanceof THREE.OrthographicCamera) {
+          controls.object.zoom = presetPose.zoom;
+          controls.object.updateProjectionMatrix();
+        }
         controls.update();
         publishPose(controls, false, true);
         invalidate();
@@ -152,7 +168,7 @@ export function useCameraFlight(options: {
     };
     if (controls) publishPose(controls, true);
     invalidate();
-    // center and presetPose are derived from flightKey.
+    // Capture framing only on a content/preset change, never on resize or mode changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flightKey]);
 
@@ -171,12 +187,14 @@ export function useCameraFlight(options: {
 
     const next = destination.current;
     if (next) {
-      easing.damp3(camera.position, next.position, 0.32, delta);
+      const landing = camera instanceof THREE.PerspectiveCamera && preset !== "orbit"
+        ? perspectiveLanding(next, size.height) : { position: next.position, fov: CAMERA_FOV };
+      easing.damp3(camera.position, landing.position, 0.32, delta);
       easing.damp3(controls.target, next.target, 0.32, delta);
       let fovSettled = true;
       if (camera instanceof THREE.PerspectiveCamera) {
         // Match the destination's target-plane scale before changing projection.
-        const targetFov = preset === "orbit" ? 50 : THREE.MathUtils.radToDeg(2 * Math.atan(size.height / (next.zoom ?? 1) / (2 * next.position.distanceTo(next.target))));
+        const targetFov = landing.fov;
         camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 10, Math.min(delta, 0.05));
         fovSettled = Math.abs(camera.fov - targetFov) < 0.01;
         camera.updateProjectionMatrix();
@@ -191,13 +209,13 @@ export function useCameraFlight(options: {
       controls.update();
       const landed =
         fovSettled &&
-        camera.position.distanceTo(next.position) < 0.4 &&
+        camera.position.distanceTo(landing.position) < 0.4 &&
         controls.target.distanceTo(next.target) < 0.4 &&
         (next.zoom === undefined ||
           !(camera instanceof THREE.OrthographicCamera) ||
           Math.abs(camera.zoom - next.zoom) < 0.01);
       if (landed) {
-        camera.position.copy(next.position);
+        camera.position.copy(landing.position);
         controls.target.copy(next.target);
         if (
           next.zoom !== undefined &&
@@ -210,6 +228,7 @@ export function useCameraFlight(options: {
         destination.current = null;
         if (cameraLandingOutcome(preset, renderedOrthoMode) === "swap") {
           landingPending.current = true;
+          setProjectionPose(next);
           setOrthoMode(preset === "orbit" ? null : preset);
         } else {
           landingPending.current = false;
@@ -227,6 +246,7 @@ export function useCameraFlight(options: {
 
   return {
     renderedOrthoMode,
+    projectionPose,
     start,
     cancel,
     land,

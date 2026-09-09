@@ -184,7 +184,9 @@ describe("readable, faithful scene contracts", () => {
     const camera = new PerspectiveCamera(); camera.position.set(0, -5, 6);
     const controls = { object: camera, target: new Vector3(0, -5, 0), minDistance: 6, maxDistance: 600, minZoom: 0.25, maxZoom: 250 } as CameraControlsHandle;
     expect(boundedZoomFactor(controls, 0.2)).toBe(1);
-    constrainCamera(controls);
+    constrainCamera(controls, "free");
+    expect(camera.position.y).toBe(-5); expect(controls.target.y).toBe(-5);
+    constrainCamera(controls, "strategy");
     expect(camera.position.y).toBe(1.5); expect(controls.target.y).toBe(1.5);
     const ortho = new OrthographicCamera(); ortho.zoom = 250; controls.object = ortho;
     expect(boundedZoomFactor(controls, 0.2)).toBe(1);

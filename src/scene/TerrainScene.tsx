@@ -79,7 +79,7 @@ export function TerrainScene({ model }: { model: ParsedTraceModel }) {
             maxBusy={visibleLanes[laneIndex].meta.kind === "network" ? Math.max(grid.bucketMs, ...bucketed.busy) : grid.bucketMs}
             bucketW={bucketW}
             scaleMode={scale}
-            onHover={(bucket, event) => useHoverStore.getState().setHover({ lane: -1, idx: bucket, clientX: event.clientX, clientY: event.clientY, summary: {
+            onHover={(bucket, event) => useHoverStore.getState().setHover({ source: "terrain", idx: bucket, clientX: event.clientX, clientY: event.clientY, summary: {
               title: visibleLanes[laneIndex].meta.name,
               catId: bucketed.dominantCat[bucket],
               detail: `${formatMs(t0 + bucket * grid.bucketMs)} · ${formatMs(bucketed.busy[bucket])} ${visibleLanes[laneIndex].meta.kind === "network" ? "request time" : "busy"} in ${formatMs(grid.bucketMs)}${visibleLanes[laneIndex].meta.kind === "network" ? " (requests overlap)" : ""}`,

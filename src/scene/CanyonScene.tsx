@@ -138,7 +138,8 @@ function LaneBoxes({ placement, pickIndex, renderedRef, t0, t1, flags, capacity 
     }
     if (renderedRef) {
       renderedRef.current = indexRenderedLane(lane, spans);
-      if (useHoverStore.getState().hover?.lane === lane.meta.id) useHoverStore.getState().setHover(null);
+      const hover = useHoverStore.getState().hover;
+      if (hover?.source === "canyon" && hover.lane === lane.meta.id) useHoverStore.getState().setHover(null);
     }
     lastLevel.current = desired;
   });
@@ -193,12 +194,15 @@ function LaneHitbox({ placement, renderedRef, t0, t1 }: { placement: LanePlaceme
       if (!span) return;
       event.stopPropagation();
       if (hovered.current?.span !== span) hovered.current = { span, bounds: renderedRef.current ? eventBounds({ ...placement, lane: renderedRef.current.geometry }, event.instanceId!, t0, t1) : null };
-      useHoverStore.getState().setHover({ lane: lane.meta.id, idx: span.entry, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
+      useHoverStore.getState().setHover({ source: "canyon", lane: lane.meta.id, idx: span.entry, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
         bounds: span.count > 1 ? hovered.current.bounds ?? undefined : undefined,
         ...(span.count > 1 ? { summary: { title: `${span.count.toLocaleString()} events · stack level ${span.depth}`, catId: span.catId,
           detail: `${formatMs(span.start)} to ${formatMs(span.end)} · aggregated at this zoom. Click to expand.` } } : {}),
       });
     }}
-    onPointerOut={() => { if (useHoverStore.getState().hover?.lane === lane.meta.id) useHoverStore.getState().setHover(null); }}
+    onPointerOut={() => {
+      const hover = useHoverStore.getState().hover;
+      if (hover?.source === "canyon" && hover.lane === lane.meta.id) useHoverStore.getState().setHover(null);
+    }}
     onClick={(event) => select(event)} onDoubleClick={(event) => select(event, true)} />;
 }

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { EvidenceIdentity } from "../domain/evidence";
-import { DIVERGING } from "../engine/categories";
+import { CAT_ID, DIVERGING } from "../engine/categories";
 import type {
   FindingProjection,
   FindingProjectionMark,
@@ -36,7 +36,7 @@ export function DiffScene({
 }) {
   const domains = [...new Set(projection.marks.map((mark) => mark.domain))];
   const bounds = useMemo(() => diffProjectionBounds(projection.marks), [projection]);
-  const hoveredIndex = useHoverStore((s) => s.hover?.lane === -5 ? s.hover.idx : -1);
+  const hoveredIndex = useHoverStore((s) => s.hover?.source === "diff" ? s.hover.idx : -1);
   const width = Math.max(
     48,
     ...projection.marks.map((mark) => (mark.domainRank + 1) * (MARK_W + 2)),
@@ -105,7 +105,7 @@ export function DiffScene({
           color={DIVERGING.neutral}
           transparent
           opacity={0.12}
-          side={2}
+          side={THREE.DoubleSide}
           depthWrite={false}
         />
       </mesh>
@@ -117,7 +117,7 @@ export function DiffScene({
           if (event.instanceId === undefined) return;
           event.stopPropagation();
           const mark = projection.marks[event.instanceId];
-          useHoverStore.getState().setHover({ lane: -5, idx: event.instanceId, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY, summary: { title: mark.title, catId: 6, detail: `${mark.status} · ${mark.domain} · ${mark.unit}` } });
+          useHoverStore.getState().setHover({ source: "diff", idx: event.instanceId, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY, summary: { title: mark.title, catId: CAT_ID.system, detail: `${mark.status} · ${mark.domain} · ${mark.unit}` } });
         }}
         onPointerOut={() => useHoverStore.getState().setHover(null)}
         onClick={(event: ThreeEvent<MouseEvent>) => {

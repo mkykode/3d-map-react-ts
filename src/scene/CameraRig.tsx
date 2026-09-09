@@ -12,6 +12,7 @@ import {
   poseForBounds,
   resolveCameraAction,
   traceSelectionBounds,
+  MAX_CAMERA_DISTANCE,
   type CameraActionKind,
   type SerializableCameraPose,
   type WorldBounds,
@@ -26,7 +27,7 @@ import {
   useCameraRuntime,
 } from "./cameraRuntime";
 import { SCENE_DEBUG } from "./diagnostics";
-import { MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM } from "./cameraLimits";
+import { CAMERA_FOV, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM } from "./cameraLimits";
 import { cityBuildingForName, cityBuildings } from "./cityLayout";
 import { aggregateSelectionBounds, selectionNameId } from "./traceSelection";
 import { CITY_H, scaleHeight } from "./layout";
@@ -80,8 +81,10 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
     return () => { camera.clearViewOffset(); };
   }, [camera, size.width, size.height, invalidate]);
   const reducedMotion = useReducedMotion();
-  const maxPolarAngle = preset === "top" ? Math.PI / 2 : Math.PI / 2 - 0.02;
-  const maxDistance = cameraMode === "strategy" ? 600 : 900;
+  const maxPolarAngle = cameraMode === "free"
+    ? Math.PI
+    : preset === "top" ? Math.PI / 2 : Math.PI / 2 - 0.02;
+  const maxDistance = cameraMode === "strategy" ? MAX_CAMERA_DISTANCE : 900;
   const worldDepth = workspaceBounds.max[2];
 
   const publishPose = useCallback(
@@ -225,6 +228,7 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
     controlsRef,
     controlsRevision,
     preset,
+    cameraMode,
     panPlane,
     cameraInput,
     hasSelection: selection !== null || selectedRegressionMark !== undefined,
@@ -236,38 +240,56 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
   });
 
   const { renderedOrthoMode } = flight;
+  const projectionPose = !reducedMotion && renderedOrthoMode ? flight.projectionPose : null;
+  return (
+    <CameraProjection
+      key={renderedOrthoMode ?? "perspective"}
+      mode={renderedOrthoMode}
+      pose={projectionPose ? {
+        position: projectionPose.position.toArray(),
+        target: projectionPose.target.toArray(),
+        zoom: projectionPose.zoom ?? 1,
+      } : presetPose}
+      assignControls={assignControls}
+      enableRotate={preset === "orbit"}
+      maxPolarAngle={maxPolarAngle}
+      // Ortho ignores distance limits. Its approach must also reach the scale-
+      // matched landing position, which can exceed the manual orbit limit.
+      maxDistance={preset === "orbit" ? maxDistance : Infinity}
+    />
+  );
+}
+
+function CameraProjection({
+  mode, pose, assignControls, enableRotate, maxPolarAngle, maxDistance,
+}: {
+  mode: "top" | "side" | null;
+  pose: Pick<SerializableCameraPose, "position" | "target" | "zoom">;
+  assignControls: (controls: CameraControlsHandle | null) => void;
+  enableRotate: boolean;
+  maxPolarAngle: number;
+  maxDistance: number;
+}) {
+  // After mounting, the flight/runtime controllers exclusively own navigation.
+  const [initialPose] = useState(pose);
   return (
     <>
-      {renderedOrthoMode === null ? (
-        <PerspectiveCamera makeDefault fov={50} near={1} far={4000} position={presetPose.position} />
-      ) : null}
-      {renderedOrthoMode === "top" ? (
+      {mode === null ? (
+        <PerspectiveCamera makeDefault fov={CAMERA_FOV} near={1} far={4000} position={initialPose.position} />
+      ) : (
         <OrthographicCamera
-          makeDefault
-          near={1}
-          far={4000}
-          position={presetPose.position}
-          zoom={presetPose.zoom}
-          up={[0, 0, -1]}
+          makeDefault near={1} far={4000}
+          position={initialPose.position}
+          zoom={initialPose.zoom}
+          up={mode === "top" ? [0, 0, -1] : [0, 1, 0]}
         />
-      ) : null}
-      {renderedOrthoMode === "side" ? (
-        <OrthographicCamera
-          makeDefault
-          near={1}
-          far={4000}
-          position={presetPose.position}
-          zoom={presetPose.zoom}
-          up={[0, 1, 0]}
-        />
-      ) : null}
+      )}
       <OrbitControls
-        key={renderedOrthoMode ?? "perspective"}
         ref={assignControls}
         makeDefault
-        target={center}
+        target={initialPose.target}
         enablePan
-        enableRotate={preset === "orbit"}
+        enableRotate={enableRotate}
         enableDamping
         zoomToCursor
         dampingFactor={0.12}

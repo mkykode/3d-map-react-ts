@@ -1,4 +1,5 @@
 import type { ParsedTraceModel } from "../engine/types";
+import { MS_PER_SECOND } from "../engine/rhythmLayout";
 import type { TraceSelection, WorldBounds } from "./cameraActions";
 import { LANE_D, LANE_GAP, RHYTHM_H, TERRAIN_H, TIME_W } from "./layout";
 import { rhythmLayout } from "./sceneBounds";
@@ -34,11 +35,11 @@ export function aggregateSelectionBounds(model: ParsedTraceModel, selection: Tra
         z0 = laneIndex * LANE_GAP - LANE_D / 2;
         z1 = laneIndex * LANE_GAP + LANE_D / 2;
       } else {
-        const firstSecond = Math.floor(start / 1000), lastSecond = Math.ceil(end / 1000) - 1;
+        const firstSecond = Math.floor(start / MS_PER_SECOND), lastSecond = Math.ceil(end / MS_PER_SECOND) - 1;
         x0 = grid.x + Math.floor(firstSecond / grid.secondsPerColumn) * grid.colW;
         x1 = grid.x + (Math.floor(lastSecond / grid.secondsPerColumn) + 1) * grid.colW;
-        z0 = firstSecond === lastSecond ? Math.floor((start % 1000) / 10) * grid.cellD : 0;
-        z1 = firstSecond === lastSecond ? Math.ceil((end - firstSecond * 1000) / 10) * grid.cellD : grid.depth;
+        z0 = firstSecond === lastSecond ? Math.floor((start % MS_PER_SECOND) / grid.cellMs) * grid.cellD : 0;
+        z1 = firstSecond === lastSecond ? Math.ceil((end - firstSecond * MS_PER_SECOND) / grid.cellMs) * grid.cellD : grid.depth;
       }
       min[0] = Math.min(min[0], x0); min[2] = Math.min(min[2], z0);
       max[0] = Math.max(max[0], x1); max[2] = Math.max(max[2], z1);

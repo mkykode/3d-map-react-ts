@@ -46,7 +46,7 @@ test("strategy and free camera switches preserve selected experiment evidence", 
   ).toBe("free");
   expect(
     Number(await stage.getAttribute("data-camera-max-polar-angle")),
-  ).toBe(strategyPolar);
+  ).toBe(Math.PI);
   expect(strategyPolar).toBeLessThan(Math.PI / 2);
   await expect(stage).toHaveAttribute("data-camera-max-distance", "900");
   await expect(status).toContainText("work");

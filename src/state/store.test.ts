@@ -122,7 +122,7 @@ describe("selected navigation ownership", () => {
       zoomed: true,
     });
     useHoverStore.setState({
-      hover: { lane: 0, idx: 0, clientX: 12, clientY: 24 },
+      hover: { source: "canyon", lane: 0, idx: 0, clientX: 12, clientY: 24 },
     });
 
     await useAppStore.getState().loadDemo();

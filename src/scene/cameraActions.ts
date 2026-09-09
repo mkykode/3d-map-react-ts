@@ -1,7 +1,7 @@
 import type { FindingId } from "../domain/analysis";
 import type { ParsedTraceModel } from "../engine/types";
 import { eventBounds, traceLayout } from "./traceLayout";
-import { clampCameraZoom } from "./cameraLimits";
+import { CAMERA_FOV, clampCameraZoom } from "./cameraLimits";
 
 export const CAMERA_PRESETS = ["orbit", "top", "side"] as const;
 export const CAMERA_MODES = ["strategy", "free"] as const;
@@ -321,7 +321,7 @@ export function poseForBounds(
   }
 
   const aspect = viewportWidth / viewportHeight;
-  const tanY = Math.tan((50 * Math.PI) / 360);
+  const tanY = Math.tan((CAMERA_FOV * Math.PI) / 360);
   const tanX = tanY * aspect;
   const direction = normalize([0.18, 0.62, 0.76]);
   const forward = scale(direction, -1);

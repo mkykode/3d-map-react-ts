@@ -140,7 +140,9 @@ function App() {
               Interactive 3D trace. Trackpad scroll or arrow keys pan. Pinch,
               mouse wheel, W, or S zoom. In orbit mode, Q and E rotate while R
               and F tilt. Home fits all, Shift+Home fits the selection, and 0
-              resets. Keyboard commands work while this view is focused.
+              resets. Strategy camera stays above ground; Free camera can orbit
+              underneath. Empty clicks keep the selection; Escape clears it.
+              Keyboard commands work while this view is focused.
             </p>
             <SceneBoundary><Canvas
               id="trace-camera"
@@ -160,7 +162,6 @@ function App() {
               flat
               dpr={[1, 2]}
               gl={{ antialias: true }}
-              onPointerMissed={(event) => { if (event.type === "click") useAppStore.getState().setSelection(null); }}
             >
               <SceneEnvironment bounds={bounds} />
               {SCENE_DEBUG && <RenderActivity hostId="trace-camera" />}

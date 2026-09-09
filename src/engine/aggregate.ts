@@ -1,4 +1,5 @@
 import { CATEGORIES } from "./categories";
+import { MS_PER_SECOND, RHYTHM_CELL_MS, rhythmDimensions } from "./rhythmLayout";
 import type {
   BottomUpRow,
   BucketGrid,
@@ -142,19 +143,14 @@ export function bottomUp(
 export function rhythmFold(
   lane: ColumnarLane,
   rangeMs: number,
-  cellMs = 10,
+  cellMs = RHYTHM_CELL_MS,
 ): RhythmGrid {
-  if (!Number.isFinite(rangeMs) || rangeMs < 0 || !Number.isSafeInteger(Math.ceil(rangeMs))) throw new RangeError("Rhythm range must be finite and non-negative");
-  if (!Number.isFinite(cellMs) || cellMs < 1 || !Number.isInteger(1000 / cellMs)) throw new RangeError("Rhythm cell size must divide one second exactly");
-  const cellsPerSecond = Math.round(1000 / cellMs);
-  const totalSeconds = Math.max(1, Math.ceil(rangeMs / 1000));
-  const secondsPerColumn = Math.max(1, Math.ceil(totalSeconds / 256));
-  const seconds = Math.ceil(totalSeconds / secondsPerColumn);
+  const { cellsPerSecond, secondsPerColumn, seconds } = rhythmDimensions(rangeMs, cellMs);
   const cells = new Float32Array(seconds * cellsPerSecond);
-  const columnMs = secondsPerColumn * 1000;
+  const columnMs = secondsPerColumn * MS_PER_SECOND;
   const { starts } = lane;
   const addPartialSecond = (start: number, end: number, column: number) => {
-    const secondStart = Math.floor(start / 1000) * 1000;
+    const secondStart = Math.floor(start / MS_PER_SECOND) * MS_PER_SECOND;
     const first = Math.floor((start - secondStart) / cellMs);
     const last = Math.min(cellsPerSecond, Math.ceil((end - secondStart) / cellMs));
     for (let cell = first; cell < last; cell++) cells[column * cellsPerSecond + cell] += Math.max(0, Math.min(end, secondStart + (cell + 1) * cellMs) - Math.max(start, secondStart + cell * cellMs));
@@ -168,15 +164,15 @@ export function rhythmFold(
       while (cursor < end) {
         const column = Math.min(seconds - 1, Math.floor(cursor / columnMs));
         const columnEnd = Math.min(end, (column + 1) * columnMs);
-        const firstBoundary = Math.min(columnEnd, Math.ceil(cursor / 1000) * 1000);
+        const firstBoundary = Math.min(columnEnd, Math.ceil(cursor / MS_PER_SECOND) * MS_PER_SECOND);
         if (firstBoundary > cursor) {
           addPartialSecond(cursor, firstBoundary, column);
           cursor = firstBoundary;
         }
-        const wholeSeconds = Math.floor((columnEnd - cursor) / 1000);
+        const wholeSeconds = Math.floor((columnEnd - cursor) / MS_PER_SECOND);
         if (wholeSeconds > 0) {
           for (let cell = 0; cell < cellsPerSecond; cell++) cells[column * cellsPerSecond + cell] += wholeSeconds * cellMs;
-          cursor += wholeSeconds * 1000;
+          cursor += wholeSeconds * MS_PER_SECOND;
         }
         if (cursor < columnEnd) addPartialSecond(cursor, columnEnd, column);
         cursor = columnEnd;

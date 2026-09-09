@@ -12,7 +12,7 @@ export function EventFeedback({ model, placements, t0, t1 }: {
   model: ParsedTraceModel; placements: LanePlacement[]; t0: number; t1: number;
 }) {
   const selection = useAppStore((s) => s.selection);
-  const hoverKey = useHoverStore((s) => s.hover && !s.hover.summary ? `${s.hover.lane}:${s.hover.idx}` : "");
+  const hoverKey = useHoverStore((s) => s.hover?.source === "canyon" && !s.hover.summary ? `${s.hover.lane}:${s.hover.idx}` : "");
   const hovered = useMemo(() => hoverKey ? hoverKey.split(":").map(Number) : null, [hoverKey]);
   const selected = selection?.kind === "entry" ? [selection.lane, selection.idx] : null;
   return <group>

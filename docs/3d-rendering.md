@@ -17,7 +17,9 @@ The renderer is a data instrument. Game techniques help people read and navigate
 - Pixel thresholds use quantized levels and hysteresis. Instance buffers have fixed capacity, dynamic usage, and populated update ranges. Lane bounds are assigned analytically.
 - Unzoomed brushing and name selection update shader uniforms rather than rewriting base instance matrices and colors. Named selections get a separate bounded subset overlay. Up to 128 fixed-pixel dots per affected lane annotate selected calls too small to draw faithfully.
 - LOD changes and camera movement clear obsolete hover information. Selection uses an independent outline proxy rather than post-processing all instances.
+- Hover records identify their source view explicitly; aggregate views never impersonate negative thread IDs. Empty-canvas clicks preserve selection. Escape and the Clear selection button clear it.
 - Rhythm has at most 256 columns by 100 cells. Long recordings group seconds explicitly. Continuous exclusive-time spans accumulate by grouped columns, not by walking millions of ten-millisecond intervals.
+- `engine/rhythmLayout.ts` defines temporal grouping once for aggregation, scene layout, selection bounds, and camera fit.
 - City retains 59 activities plus a labeled remainder when necessary. Remainder totals and zero-self, positive-inclusive-time activities are not discarded. Footprint encodes inclusive time, height encodes self time. Inclusive totals can overlap between nested calls.
 - Terrain preserves category mixtures within each time bucket. CPU height is utilization; network height is normalized to peak aggregate request time. Selected calls in Terrain/Rhythm are labeled range annotations, not per-call geometry.
 
@@ -27,12 +29,14 @@ The renderer is a data instrument. Game techniques help people read and navigate
 - Shader borders provide pixel-width face separation without an extra outline pass. Screen-space labels use fixed CSS pixels, priority, and collision culling. They do not shrink or foreshorten with distance.
 - A fading ground grid and environment fog provide orientation. Data colors and labels are excluded from fog. City and Terrain use one-shot contact shadows. Diff improvements remain visible below their zero plane.
 - Every view supplies its own bounds. Selection fitting resolves to that view's geometry, including carried entry selections and City's remainder. Main-stage projection offsets account for overlay space.
-- Near plane is 1. Perspective distance and orthographic zoom are bounded. The controls and flight destinations share zoom limits, preventing unreachable destinations from rendering forever. Panning cannot move the camera below the floor.
+- Near plane is 1. Manual perspective distance and orthographic zoom are bounded. Strategy keeps the camera above ground; Free permits below-ground orbit and pan. Ground surfaces are front-sided so they do not conceal data from underneath. Switching back to Strategy reapplies its safety bounds.
+- Perspective approaches to Top and Side cap vertical field of view at 90 degrees, dollying back as needed to match orthographic target-plane scale before swapping cameras. These automatic approaches can exceed the manual orbit distance limit so tall layouts remain reachable.
 - Held navigation keys use delta-time acceleration and deceleration. Pointer, touch, keyboard, reduced-motion, cursor anchoring, and idle behavior have browser tests.
 - The minimap shows the clipped view footprint and live heading. The overview also shows the visible time interval independently of the analysis brush.
 - Screenshot textures retain aspect ratio and sRGB color, set anisotropy, upload after decoding, invalidate demand rendering, and dispose when replaced.
 - Shader programs warm without blocking. `ShaderWarmup` mounts zero-count instanced probes carrying every data shader variant from first paint, so those programs compile during the worker parse and stay cached, and it calls `compileAsync` on each scene change. drei's synchronous `Preload` compiled every material in one GPU-process stall of about 0.9 s at model arrival on ANGLE/Metal; replacing it cut dev-mode time-to-stable from a 2.0 s median to 1.5 s (HEAD before this work: 1.1 s).
 - Only preset, view, or content bounds may fly the camera home. Viewport size and camera mode stay out of the flight key: a window resize or a mode toggle never discards the user's navigation.
+- Camera position, target, and zoom props seed each projection only on mount. Flight and navigation controllers own subsequent changes. Resize updates projection dimensions and overlay offsets, not the navigated pose. Explicit Fit/Reset commands use the current viewport.
 - Test render telemetry is opt-in with `?debug`. A scene error boundary keeps trace analysis available if the 3D renderer fails.
 
 ## Why some proposed game techniques were not added
@@ -57,7 +61,9 @@ These are local observations, not a universal 60 fps guarantee. The hardware run
 
 Run `pnpm build`, `pnpm lint`, `pnpm test`, and `pnpm test:e2e`. `render-performance.spec.ts` records source counts, instance counts, draw calls, parse time, backend, median, and p95. `visualization.spec.ts` tests real pointer picking, feedback, aggregate expansion, unchanged base buffers, color readback, linked selections, and opt-in telemetry.
 
-The final verification run on the committed tree passed build, lint, 176 unit tests in 37 files, and all 42 browser tests. Two regressions found during that verification were fixed before commit: the flight key included the viewport size, so a window resize flew the camera home and discarded navigation (and made the reduced-motion browser test race), and drei's synchronous `Preload` doubled dev-mode startup. The reduced-motion test now waits for the published camera bounds to change after a view switch instead of the entrance-animation attribute, which no longer changes.
+The initial repair passed build, lint, 176 unit tests in 37 files, and all 42 browser tests. That verification removed viewport size from the flight key and replaced drei's synchronous `Preload`, which doubled dev-mode startup. The reduced-motion test waits for the published camera bounds to change after a view switch instead of the entrance-animation attribute, which no longer changes.
+
+Follow-up verification found that live camera props still overwrote navigation on resize and mode changes, even without a scheduled flight. Nine new browser regressions failed on the starting tree, then passed after the mount-only camera seeds, unrestricted Free mode, selection preservation, and bounded-FOV landing changes. The follow-up passed build, lint, 197 unit tests in 38 files, and all 51 browser tests. The tall Side fixture previously reached 154.47 degrees; it now stays at or below 90 degrees and changes target-plane scale by less than 1% when switching to orthographic. New unit coverage also checks the shared Rhythm grouping at range and cell-size boundaries.
 
 The obsolete `src/scene/GrowIn.tsx` animation was removed because it scaled data geometry during entrance. The original file remains recoverable from Git history. No trace fixtures were deleted.
 
@@ -69,6 +75,6 @@ The audit covered the APIs used by this renderer, not literally every page in th
 
 - [InstancedMesh](https://threejs.org/docs/pages/InstancedMesh.html), [BufferAttribute](https://threejs.org/docs/pages/BufferAttribute.html), [Material](https://threejs.org/docs/pages/Material.html), [WebGLRenderer](https://threejs.org/docs/pages/WebGLRenderer.html)
 - [Ray](https://threejs.org/docs/pages/Ray.html), [picking](https://threejs.org/manual/en/picking.html), [LOD](https://threejs.org/docs/pages/LOD.html), [optimizing many objects](https://threejs.org/manual/en/optimize-lots-of-objects.html)
-- [OrbitControls](https://threejs.org/docs/pages/OrbitControls.html), [color management](https://threejs.org/manual/en/color-management.html), [Texture](https://threejs.org/docs/pages/Texture.html), [Fog](https://threejs.org/docs/pages/Fog.html), [HemisphereLight](https://threejs.org/docs/pages/HemisphereLight.html)
+- [OrbitControls](https://threejs.org/docs/pages/OrbitControls.html), [PerspectiveCamera](https://threejs.org/docs/pages/PerspectiveCamera.html), [color management](https://threejs.org/manual/en/color-management.html), [Texture](https://threejs.org/docs/pages/Texture.html), [Fog](https://threejs.org/docs/pages/Fog.html), [HemisphereLight](https://threejs.org/docs/pages/HemisphereLight.html)
 - [R3F Canvas](https://r3f.docs.pmnd.rs/api/canvas), [events](https://r3f.docs.pmnd.rs/api/events), [scaling performance](https://r3f.docs.pmnd.rs/advanced/scaling-performance), [pitfalls](https://r3f.docs.pmnd.rs/advanced/pitfalls)
 - [drei Html](https://drei.docs.pmnd.rs/misc/html), [Grid](https://drei.docs.pmnd.rs/gizmos/grid), [Preload](https://drei.docs.pmnd.rs/performances/preload)

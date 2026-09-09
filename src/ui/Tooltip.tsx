@@ -7,7 +7,7 @@ export function Tooltip() {
   const model = useAppStore((s) => s.model);
   if (!hover || !model) return null;
 
-  const lane = model.lanes.find((l) => l.meta.id === hover.lane);
+  const lane = hover.source === "canyon" ? model.lanes.find((l) => l.meta.id === hover.lane) : undefined;
   const i = hover.idx;
   if (!hover.summary && (!lane || i < 0 || i >= lane.starts.length)) return null;
   const cat = CATEGORIES[hover.summary?.catId ?? lane!.catIds[i]];

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { HoverInfo } from "./hover";
 import { engineClient } from "../engine/engineClient";
 import { DEFAULT_VISIBLE_LANES } from "../engine/constants";
 import type { SessionManifest } from "../engine/protocol";
@@ -12,7 +13,6 @@ import {
   type CameraInputCommand,
   type SerializableCameraPose,
   type TraceSelection,
-  type WorldBounds,
 } from "../scene/cameraActions";
 import type { PanPlane } from "../scene/cameraNavigation";
 import type {
@@ -33,15 +33,6 @@ export type CameraMode = CameraControlMode;
 export type ScaleMode = "linear" | "log";
 
 export type Selection = TraceSelection;
-
-export interface HoverInfo {
-  lane: number;
-  idx: number;
-  clientX: number;
-  clientY: number;
-  summary?: { title: string; detail: string; catId: number };
-  bounds?: WorldBounds;
-}
 
 interface AppState {
   model: ParsedTraceModel | null;

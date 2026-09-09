@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { FindingId } from "../domain/analysis";
-import { DIVERGING } from "../engine/categories";
+import { CAT_ID, DIVERGING } from "../engine/categories";
 import type {
   RegressionMark,
   RegressionProjection,
@@ -43,7 +43,7 @@ export function RegressionScene({
   const invalidate = useThree((state) => state.invalidate);
   const bounds = regressionProjectionBounds(projection.marks);
   const scales = Object.values(projection.scales);
-  const hoveredIndex = useHoverStore((s) => s.hover?.lane === -6 ? s.hover.idx : -1);
+  const hoveredIndex = useHoverStore((s) => s.hover?.source === "regression" ? s.hover.idx : -1);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -117,7 +117,7 @@ export function RegressionScene({
             Math.max(32, bounds.max[2] - bounds.min[2] + 16),
           ]}
         />
-        <meshBasicMaterial color={GROUND} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={GROUND} />
       </mesh>
       <instancedMesh
         ref={ref}
@@ -127,7 +127,7 @@ export function RegressionScene({
           const mark = regressionMarkAtInstance(projection.marks, event.instanceId);
           if (!mark) return;
           event.stopPropagation();
-          useHoverStore.getState().setHover({ lane: -6, idx: event.instanceId!, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY, summary: { title: mark.title, catId: 6, detail: `${mark.status}${mark.gap ? " · evidence gap" : ""}` } });
+          useHoverStore.getState().setHover({ source: "regression", idx: event.instanceId!, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY, summary: { title: mark.title, catId: CAT_ID.system, detail: `${mark.status}${mark.gap ? " · evidence gap" : ""}` } });
         }}
         onPointerOut={() => useHoverStore.getState().setHover(null)}
         onClick={(event: ThreeEvent<MouseEvent>) => {

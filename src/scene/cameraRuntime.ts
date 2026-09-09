@@ -8,6 +8,7 @@ import {
   cameraInputForKeyboard,
   type CameraActionKind,
   type CameraActionPreset,
+  type CameraControlMode,
   type CameraInputCommand,
 } from "./cameraActions";
 import type { PanPlane } from "./cameraNavigation";
@@ -105,6 +106,7 @@ export function useCameraRuntime(options: {
   controlsRef: RefObject<CameraControlsHandle | null>;
   controlsRevision: number;
   preset: CameraActionPreset;
+  cameraMode: CameraControlMode;
   panPlane: PanPlane;
   cameraInput: { id: number; command: CameraInputCommand } | null;
   hasSelection: boolean;
@@ -122,6 +124,7 @@ export function useCameraRuntime(options: {
     controlsRef,
     controlsRevision,
     preset,
+    cameraMode,
     panPlane,
     cameraInput,
     hasSelection,
@@ -159,6 +162,7 @@ export function useCameraRuntime(options: {
     pendingNavigation.current = [];
     finishCameraSwap();
     controls.update();
+    constrainCamera(controls, cameraMode);
     publishPose(controls, false, true);
 
     const cancelFlight = () => {
@@ -251,7 +255,7 @@ export function useCameraRuntime(options: {
     };
     const onChange = () => {
       if (useHoverStore.getState().hover) useHoverStore.getState().setHover(null);
-      constrainCamera(controls);
+      constrainCamera(controls, cameraMode);
       publishPose(controls, isFlying());
       invalidate();
     };
@@ -282,6 +286,7 @@ export function useCameraRuntime(options: {
     isTransitioning,
     land,
     preset,
+    cameraMode,
     publishPose,
   ]);
 
@@ -300,7 +305,7 @@ export function useCameraRuntime(options: {
       const scaled: CameraInputCommand = command.kind === "pan" ? { ...command, multiplier: command.multiplier * amount }
         : command.kind === "rotate" ? { ...command, angle: command.angle * amount }
         : { ...command, factor: Math.pow(command.factor, amount) };
-      applyCameraInput({ controls, command: scaled, panPlane, preset, transitioning: isTransitioning(), hasSelection,
+      applyCameraInput({ controls, command: scaled, panPlane, preset, cameraMode, transitioning: isTransitioning(), hasSelection,
         queue: (operation) => pendingNavigation.current.push(operation), land: () => { if (isFlying()) land(controls); }, cancelFlight: cancel, requestAction });
     }
     if (heldKeys.current.size) { publishPose(controls); invalidate(); }
@@ -317,6 +322,7 @@ export function useCameraRuntime(options: {
       command: cameraInput.command,
       panPlane,
       preset,
+      cameraMode,
       transitioning: isTransitioning(),
       hasSelection,
       queue: (operation) => pendingNavigation.current.push(operation),
@@ -342,6 +348,7 @@ export function useCameraRuntime(options: {
     land,
     panPlane,
     preset,
+    cameraMode,
     publishPose,
     requestAction,
   ]);
@@ -365,6 +372,7 @@ export function applyCameraInput(options: {
   command: CameraInputCommand;
   panPlane: PanPlane;
   preset: CameraActionPreset;
+  cameraMode: CameraControlMode;
   transitioning: boolean;
   hasSelection: boolean;
   queue: (operation: PendingNavigation) => void;
@@ -447,7 +455,7 @@ export function applyCameraInput(options: {
     }
   }
   controls.update();
-  constrainCamera(controls);
+  constrainCamera(controls, options.cameraMode);
   return "applied";
 }
 

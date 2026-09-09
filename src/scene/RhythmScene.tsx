@@ -2,10 +2,11 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ParsedTraceModel } from "../engine/types";
 import { rhythmFold } from "../engine/aggregate";
+import { MS_PER_SECOND } from "../engine/rhythmLayout";
 import { CAT_ID, SEQUENTIAL_RAMP } from "../engine/categories";
 import { useAppStore, useHoverStore } from "../state/store";
-import { RHYTHM_H, formatMs, scaleHeight } from "./layout";
-import { rhythmLayout, RHYTHM_CELL_MS } from "./sceneBounds";
+import { RHYTHM_H, TIME_W, formatMs, scaleHeight } from "./layout";
+import { rhythmLayout } from "./sceneBounds";
 import { ScreenLabel } from "./ScreenLabels";
 import { DataMaterial } from "./DataMaterial";
 import { uploadInstances, writeBox } from "./instanceBuffers";
@@ -19,9 +20,9 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
   const brush = useAppStore((s) => s.brush);
   const selection = useAppStore((s) => s.selection);
   const selectedBounds = useMemo(() => aggregateSelectionBounds(model, selection, hiddenLanes, "rhythm", [0, model.rangeMs]), [model, selection, hiddenLanes]);
-  const hoveredIndex = useHoverStore((s) => s.hover?.lane === -3 ? s.hover.idx : -1);
+  const hoveredIndex = useHoverStore((s) => s.hover?.source === "rhythm" ? s.hover.idx : -1);
   const mainLane = useMemo(() => model.lanes.find((l) => l.meta.kind === "main" && !hiddenLanes.has(l.meta.id)) ?? model.lanes.find((l) => !hiddenLanes.has(l.meta.id)) ?? null, [model, hiddenLanes]);
-  const grid = useMemo(() => mainLane ? rhythmFold(mainLane, model.rangeMs, RHYTHM_CELL_MS) : null, [mainLane, model.rangeMs]);
+  const grid = useMemo(() => mainLane ? rhythmFold(mainLane, model.rangeMs) : null, [mainLane, model.rangeMs]);
   const layout = rhythmLayout(model.rangeMs);
   const { colW, cellD, width, depth, x } = layout;
   const cells = useMemo(() => {
@@ -35,8 +36,8 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
   }, [grid]);
   const ref = useRef<THREE.InstancedMesh>(null);
   const timeRanges = useMemo(() => Float32Array.from(cells.flatMap((cell) => {
-    const period = cell.second * (grid?.secondsPerColumn ?? 1) * 1000;
-    return grid?.secondsPerColumn === 1 ? [period + cell.offset * grid.cellMs, period + (cell.offset + 1) * grid.cellMs] : [period, period + (grid?.secondsPerColumn ?? 1) * 1000];
+    const period = cell.second * (grid?.secondsPerColumn ?? 1) * MS_PER_SECOND;
+    return grid?.secondsPerColumn === 1 ? [period + cell.offset * grid.cellMs, period + (cell.offset + 1) * grid.cellMs] : [period, period + (grid?.secondsPerColumn ?? 1) * MS_PER_SECOND];
   })), [cells, grid]);
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -49,7 +50,7 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
     });
     uploadInstances(mesh, cells.length, { min: [0, 0, 0], max: [width, RHYTHM_H, depth] });
   }, [cells, grid, scale, colW, cellD, width, depth]);
-  if (!grid) return <ScreenLabel id="rhythm-empty" position={[80, 2, 30]}>No thread activity to fold</ScreenLabel>;
+  if (!grid) return <ScreenLabel id="rhythm-empty" position={[TIME_W / 2, 2, depth / 2]}>No thread activity to fold</ScreenLabel>;
   const labelStep = Math.max(1, Math.ceil(grid.seconds / 12));
   return <group position={[x, 0, 0]}>
     {selectedBounds && <group position={[-x, 0, 0]}><BoxFeedback id="rhythm-selection" bounds={selectedBounds} label="Selected calls · folded time range" /></group>}
@@ -58,7 +59,7 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
         if (event.instanceId === undefined) return;
         event.stopPropagation();
         const cell = cells[event.instanceId];
-        useHoverStore.getState().setHover({ lane: -3, idx: event.instanceId, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
+        useHoverStore.getState().setHover({ source: "rhythm", idx: event.instanceId, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
           summary: { title: `${cell.second * grid.secondsPerColumn} s + ${cell.offset * grid.cellMs} ms`, catId: CAT_ID.loading,
             detail: `${formatMs(cell.busy)} busy across ${grid.secondsPerColumn} × ${grid.cellMs} ms intervals. Click to inspect ${grid.secondsPerColumn === 1 ? "this time slice" : "this period"}.` } });
       }}
@@ -67,9 +68,9 @@ export function RhythmScene({ model }: { model: ParsedTraceModel }) {
         if (event.instanceId === undefined || event.delta > 4) return;
         event.stopPropagation();
         const cell = cells[event.instanceId];
-        const periodStart = cell.second * grid.secondsPerColumn * 1000;
+        const periodStart = cell.second * grid.secondsPerColumn * MS_PER_SECOND;
         const start = grid.secondsPerColumn === 1 ? periodStart + cell.offset * grid.cellMs : periodStart;
-        const end = grid.secondsPerColumn === 1 ? start + grid.cellMs : periodStart + grid.secondsPerColumn * 1000;
+        const end = grid.secondsPerColumn === 1 ? start + grid.cellMs : periodStart + grid.secondsPerColumn * MS_PER_SECOND;
         const padding = grid.cellMs * 2;
         const state = useAppStore.getState();
         state.setBrush([Math.max(0, start - padding), Math.min(model.rangeMs, end + padding)]);

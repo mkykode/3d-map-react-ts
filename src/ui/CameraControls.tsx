@@ -37,6 +37,7 @@ export function CameraControls() {
             type="button"
             className={cameraMode === mode ? "seg active" : "seg"}
             aria-pressed={cameraMode === mode}
+            title={mode === "strategy" ? "Keep the camera above ground" : "Orbit freely, including below ground"}
             key={mode}
             onClick={() => setCameraMode(mode)}
           >

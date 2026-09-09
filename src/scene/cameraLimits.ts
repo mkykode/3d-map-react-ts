@@ -1,18 +1,21 @@
 import { OrthographicCamera } from "three";
 import type { CameraControlsHandle } from "./cameraFlight";
+import type { CameraControlMode } from "./cameraActions";
 
 export const MIN_CAMERA_ZOOM = 0.25;
 export const MAX_CAMERA_ZOOM = 250;
+export const CAMERA_FOV = 50;
+export const MAX_FLIGHT_FOV = 90;
 
 export function clampCameraZoom(zoom: number) {
   return Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, zoom));
 }
 
 /** Orbit polar limits alone do not stop a panned target going below ground. */
-export function constrainCamera(controls: CameraControlsHandle) {
+export function constrainCamera(controls: CameraControlsHandle, mode: CameraControlMode) {
   const camera = controls.object;
   const minY = 1.5;
-  if (camera.position.y < minY) {
+  if (mode === "strategy" && camera.position.y < minY) {
     const correction = minY - camera.position.y;
     camera.position.y += correction;
     controls.target.y += correction;

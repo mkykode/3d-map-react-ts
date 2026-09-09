@@ -17,7 +17,7 @@ export function CityScene({ model }: { model: ParsedTraceModel }) {
   const scale = useAppStore((s) => s.scale);
   const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const selectedName = useAppStore((s) => selectionNameId(model, s.selection));
-  const hoveredIndex = useHoverStore((s) => s.hover?.lane === -2 ? s.hover.idx : -1);
+  const hoveredIndex = useHoverStore((s) => s.hover?.source === "city" ? s.hover.idx : -1);
   const [t0, t1] = windowOf(model, brush);
   const city = useMemo(() => cityBuildings(model, hiddenLanes, t0, t1), [model, hiddenLanes, t0, t1]);
   const { buildings, folded, maxSelf } = city;
@@ -40,7 +40,7 @@ export function CityScene({ model }: { model: ParsedTraceModel }) {
         const b = event.instanceId === undefined ? null : buildings[event.instanceId];
         if (!b) return;
         event.stopPropagation();
-        useHoverStore.getState().setHover({ lane: -2, idx: event.instanceId!, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
+        useHoverStore.getState().setHover({ source: "city", idx: event.instanceId!, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
           summary: { title: b.row.nameId < 0 ? `${folded} remaining activities` : model.names[b.row.nameId], catId: b.row.catId,
             detail: `${formatMs(b.row.self)} self · ${formatMs(b.row.total)} inclusive · ${b.row.count.toLocaleString()} calls in this window` } });
       }}

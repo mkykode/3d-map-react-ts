@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { VitalMarker } from "../engine/types";
 import type { Vector3Tuple } from "./cameraActions";
-import { INK_SECONDARY, xOf } from "./layout";
+import { INK_SECONDARY, TIME_W, xOf } from "./layout";
 import { SegmentLines } from "./SegmentLines";
 import { ScreenLabel } from "./ScreenLabels";
 
@@ -10,7 +10,7 @@ export function VitalsBeacons({ markers, rangeMs, depth, height }: { markers: Vi
     const result: { ts: number; labels: string[] }[] = [];
     for (const marker of [...markers].sort((a, b) => a.ts - b.ts)) {
       const last = result[result.length - 1];
-      if (last && Math.abs(last.ts - marker.ts) / rangeMs * 160 < 2) {
+      if (last && Math.abs(last.ts - marker.ts) / rangeMs * TIME_W < 2) {
         if (!last.labels.includes(marker.label)) last.labels.push(marker.label);
       } else result.push({ ts: marker.ts, labels: [marker.label] });
     }
