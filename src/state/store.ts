@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { HoverInfo } from "./hover";
 import { engineClient } from "../engine/engineClient";
 import { STREAM_LIMITS } from "../engine/ingest/budget";
+import { isGzip } from "../engine/ingest/jsonStream";
 import type { TraceWindow } from "../engine/ingest/types";
 import type { TraceImportState } from "./traceImport";
 import { DEFAULT_VISIBLE_LANES } from "../engine/constants";
@@ -349,9 +350,9 @@ async function startFileImport(file: File, slot: FileImportJob["slot"]): Promise
   activeFileImport = job;
   useAppStore.setState({ status: `Reading ${file.name}…`, error: null, traceImport: { file, slot, phase: "loading", overview: null, progress: null, error: null } });
   try {
-    const magic = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+    const payloadBytes = await importPayloadBytes(file);
     if (!currentFileImport(job)) return;
-    if (file.size > STREAM_LIMITS.largeFileBytes || (magic[0] === 0x1f && magic[1] === 0x8b)) {
+    if (payloadBytes > STREAM_LIMITS.largeFileBytes) {
       updateImport(job, { phase: "scanning" });
       const overview = await engineClient.scanFile(file, slot, {
         signal: job.controller.signal,
@@ -367,6 +368,18 @@ async function startFileImport(file: File, slot: FileImportJob["slot"]): Promise
     activeFileImport = null;
     useAppStore.setState({ status: null, traceImport: null, error: describeError(error) });
   }
+}
+
+/**
+ * Decompressed size decides the import path, so a small gzip file loads
+ * exactly like its uncompressed twin. The gzip ISIZE trailer is the payload
+ * size modulo 2^32; anything that wraps is far beyond the threshold anyway.
+ */
+async function importPayloadBytes(file: File): Promise<number> {
+  if (!(await isGzip(file)) || file.size < 18) return file.size;
+  const trailer = new DataView(await file.slice(file.size - 4).arrayBuffer());
+  const size = trailer.getUint32(0, true);
+  return size === 0 ? file.size : size;
 }
 
 function updateImport(job: FileImportJob, update: Partial<TraceImportState>): void {

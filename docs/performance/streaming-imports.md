@@ -20,11 +20,23 @@ This is an explicit reduced visualization, not a lossless trace conversion:
 
 - Drop `v8.callFunction`, `v8::Debugger::*`, events exclusively categorized as
   `disabled-by-default-v8.inspector`, and embedded V8 source-rundown categories.
+  This changes the rendered flame chart, not only its size: the engine treats
+  every `X` event as a stack entry, so a `v8.callFunction` wrapper is a level in
+  the exact model. Calls nested inside one sit one level shallower after the
+  reduction, and the wrapper's parent gains the wrapper's self time. DevTools
+  hides these wrappers in its own flame chart. The notice states this.
+- Skip array members that are not well-formed trace events (missing name, ph,
+  ts, pid or tid, negative dur) and count them as malformed instead of failing
+  the whole import; the exact path tolerated them too.
 - Retain all memory-counter events within the selected interval. No 100 ms
   thinning, which could hide short peaks.
 - Preserve CPU profile headers and node definitions. Rebuild sample deltas from
   the original cumulative clock, including negative deltas supported by Chromium.
-  Remap sample-indexed trace IDs and line/column arrays after filtering.
+  Filter line/column arrays with the samples. `trace_ids` maps trace ids to
+  node ids and passes through unchanged because every node is kept.
+- Anchor the overview and window seconds on `TracingStartedInBrowser` when the
+  trace has one. Recordings carry stray compositor events from seconds before
+  tracing started, and the engine's bounds ignore them.
 - Clip complete spans and reconstruct synchronous begin/end spans before
   clipping. Keep process/thread and renderer-frame context.
 - Omit resources, source maps and other unused envelope fields; preserve metadata
@@ -33,6 +45,8 @@ This is an explicit reduced visualization, not a lossless trace conversion:
   and page-wide metrics. They are not complete page-load measurements.
 
 SHA-256 identifies the exact original compressed input and decompressed payload.
+It runs in JavaScript over every byte of the load pass (twice for gzip), which
+is a few seconds per gigabyte; the scan pass skips it.
 The reduction report records the window and counts separately. Controlled
 experiments reject sessions carrying this reduction marker, including prepared
 files imported through the exact-envelope path.

@@ -70,9 +70,12 @@ interval. **Change interval** reuses the same file without another file picker.
 Both primary and comparison traces support this workflow.
 
 The worker reads bounded chunks and filters before building the DevTools model.
-It removes named V8 debugger bookkeeping and embedded source-rundown events,
-preserves CPU profile timing and node definitions, and does not thin memory
-counters. The scope notice lists reductions. Windowed views can lose network and
+It removes `v8.callFunction` wrappers, V8 debugger bookkeeping and embedded
+source-rundown events, preserves CPU profile timing and node definitions, and
+does not thin memory counters. Because the wrappers were stack levels in the
+exact model, calls nested inside them sit one level shallower and their parents
+show more self time than an exact import; DevTools hides the same wrappers.
+The scope notice lists reductions. Windowed views can lose network and
 asynchronous relationships crossing their boundaries, and are not complete
 page-load measurements. Controlled experiments still require original traces;
 reduced imports are rejected as experimental evidence.

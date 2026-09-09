@@ -42,8 +42,13 @@ test("supports gzip comparison windows and accessible narrow-screen controls", a
   await page.setViewportSize({ width: 375, height: 720 });
   await openWorkspace(page);
   await page.getByRole("button", { name: "Toolbar controls" }).click();
+  // The picker is decided by decompressed size, so a small gzip file loads
+  // exactly like its uncompressed twin; pad this one past the threshold.
   const fixture = makeTraceUpload({ eventCount: 100, taskSpacingUs: 100_000 });
-  await page.locator('input[type="file"]').nth(1).setInputFiles({ ...fixture, name: "comparison.json.gz", buffer: gzipSync(fixture.buffer) });
+  const padded = JSON.parse(fixture.buffer.toString());
+  const bookkeeping = { name: "v8.callFunction", cat: "v8", ph: "X", pid: 1, tid: 1, ts: 1_000_000, dur: 1, args: { note: "x".repeat(1024) } };
+  padded.traceEvents.push(...Array.from({ length: 33_000 }, () => bookkeeping));
+  await page.locator('input[type="file"]').nth(1).setInputFiles({ ...fixture, name: "comparison.json.gz", buffer: gzipSync(Buffer.from(JSON.stringify(padded))) });
   const dialog = page.getByRole("dialog", { name: "Choose what to load" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Start (seconds)").fill("1");

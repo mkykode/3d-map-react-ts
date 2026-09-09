@@ -37,7 +37,7 @@ export class TraceFilter {
     if (window && (!window.every(Number.isFinite) || window[0] < 0 || window[1] <= window[0])) throw new Error("Invalid trace time window.");
     this.report = {
       version: 1, mode: "visualization", sourceEventCount: 0, retainedEventCount: 0,
-      droppedBookkeeping: 0, droppedSourceEvents: 0, outsideWindow: 0,
+      droppedBookkeeping: 0, droppedSourceEvents: 0, droppedMalformed: 0, outsideWindow: 0,
       omittedEnvelopeFields: [], window, importSha256: "", payloadSha256: "",
     };
   }
@@ -88,7 +88,7 @@ export class TraceFilter {
     const [start, end] = this.window!;
     const clippedStart = Math.max(start, event.ts);
     const clippedEnd = Math.min(end, event.ts + (event.dur ?? 0));
-    if (clippedEnd > clippedStart || (event.dur === 0 && event.ts >= start && event.ts < end)) {
+    if (clippedEnd > clippedStart || ((event.dur ?? 0) === 0 && event.ts >= start && event.ts < end)) {
       this.output({ ...event, ts: clippedStart, dur: clippedEnd - clippedStart });
     } else this.report.outsideWindow++;
   }
@@ -139,14 +139,9 @@ export class TraceFilter {
       delete selectedNode.positionTicks;
       return selectedNode;
     });
-    if (cpu.trace_ids !== undefined) {
-      const traceIds: Record<string, unknown> = {};
-      for (const [sourceIndex, traceId] of Object.entries(record(cpu.trace_ids))) {
-        const index = clock.sampleIndexes.get(Number(sourceIndex));
-        if (index !== undefined) traceIds[index] = traceId;
-      }
-      nextCpu.trace_ids = traceIds;
-    }
+    // trace_ids maps a trace id to a node id (SamplesIntegrator looks up
+    // traceIds[traceId], SamplesHandler merges chunks by key). Every node is
+    // kept, so the map passes through unchanged; it is not sample-indexed.
     const nextData: Record<string, unknown> = { ...data, cpuProfile: nextCpu, timeDeltas: selectedDeltas };
     for (const name of ["lines", "columns"]) {
       const values = data[name];

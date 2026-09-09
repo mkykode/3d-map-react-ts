@@ -33,22 +33,23 @@ async function main(): Promise<void> {
   process.once("SIGTERM", cancel);
   try {
     const file = await openAsBlob(input);
-    let window: TraceWindow | null = null;
-    if (inspect || interval) {
-      console.error("Scanning recording…");
-      const overview = await scanTrace(file, { signal: controller.signal });
-      const duration = (overview.endUs - overview.startUs) / 1e6;
-      console.log(JSON.stringify({ durationSeconds: duration, events: overview.eventCount, retainedEvents: overview.retainedEventCount, retainedBytes: overview.retainedBytes }, null, 2));
-      if (inspect) return;
-      if (interval) {
-        if (interval[1] > duration) throw new Error(`Window extends past the ${duration.toFixed(3)} second recording.`);
-        window = [overview.startUs + interval[0] * 1e6, overview.startUs + interval[1] * 1e6];
-      }
-    }
-    // Exclusive creation prevents overwriting an input alias or an existing output.
-    const destination = await open(output!, "wx");
-    let complete = false;
+    // Exclusive creation prevents overwriting an input alias or an existing
+    // output, and it runs before any scan so a clash is reported immediately.
+    const destination = inspect ? null : await open(output!, "wx");
+    let complete = inspect;
     try {
+      let window: TraceWindow | null = null;
+      if (inspect || interval) {
+        console.error("Scanning recording…");
+        const overview = await scanTrace(file, { signal: controller.signal });
+        const duration = (overview.endUs - overview.startUs) / 1e6;
+        console.log(JSON.stringify({ durationSeconds: duration, events: overview.eventCount, retainedEvents: overview.retainedEventCount, retainedBytes: overview.retainedBytes }, null, 2));
+        if (interval) {
+          if (interval[1] > duration) throw new Error(`Window extends past the ${duration.toFixed(3)} second recording.`);
+          window = [overview.startUs + interval[0] * 1e6, overview.startUs + interval[1] * 1e6];
+        }
+      }
+      if (!destination) return;
       console.error("Streaming and filtering recording…");
       const prepared = await prepareTrace(file, window, { signal: controller.signal });
       await destination.writeFile('{"traceEvents":[');
@@ -63,8 +64,8 @@ async function main(): Promise<void> {
       complete = true;
       console.log(JSON.stringify({ output: resolve(output!), retainedBytes: prepared.retainedBytes, ...prepared.report }, null, 2));
     } finally {
-      await destination.close();
-      if (!complete) {
+      await destination?.close();
+      if (destination && !complete) {
         await unlink(output!);
         console.error(`Removed incomplete output: ${output}`);
       }

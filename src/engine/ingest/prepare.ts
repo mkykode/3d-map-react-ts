@@ -9,6 +9,7 @@ export function jsonBytes(value: unknown): number { return encoder.encode(JSON.s
 export async function scanTrace(blob: Blob, options: StreamOptions = {}): Promise<TraceOverview> {
   let startUs = Infinity;
   let endUs = -Infinity;
+  let tracingStartUs = Infinity;
   let bucketWidthUs = 100_000;
   let buckets = new Map<number, number>();
   let eventCount = 0;
@@ -21,6 +22,9 @@ export async function scanTrace(blob: Blob, options: StreamOptions = {}): Promis
       retainedEventCount++;
       retainedBytes += rawBytes;
       if (event.ph === "M") return;
+      if (event.name === "TracingStartedInBrowser" || event.name === "TracingStartedInPage") {
+        tracingStartUs = Math.min(tracingStartUs, event.ts);
+      }
       startUs = Math.min(startUs, event.ts);
       endUs = Math.max(endUs, event.ts + (event.dur ?? 0));
       while (Math.floor(endUs / bucketWidthUs) - Math.floor(startUs / bucketWidthUs) >= STREAM_LIMITS.histogramBins) {
@@ -38,6 +42,11 @@ export async function scanTrace(blob: Blob, options: StreamOptions = {}): Promis
     field(key, value) { if (key === "metadata" || key === "settings") retainedBytes += jsonBytes(value); },
   }, { ...options, hashes: false });
   if (!Number.isFinite(startUs)) throw new Error("Trace has no timed events.");
+  // Traces carry stray events from before tracing started (compositor
+  // pipeline reporters seconds earlier). The engine anchors its bounds on
+  // TracingStartedInBrowser, so the overview and window seconds do too;
+  // events before it stay retained for a full load but leave the histogram.
+  if (tracingStartUs > startUs && tracingStartUs < endUs) startUs = tracingStartUs;
   endUs = Math.max(startUs + 1, endUs);
   const firstBucket = Math.floor(startUs / bucketWidthUs);
   const counts = Array.from({ length: Math.floor(endUs / bucketWidthUs) - firstBucket + 1 }, (_, i) => buckets.get(firstBucket + i) ?? 0);
@@ -79,7 +88,7 @@ export async function prepareTrace(
     },
   }, options);
   if (traceEvents.length === 0) throw new Error("No events remain in this time window. Choose another interval.");
-  const report = { ...filter.report, importSha256: result.importSha256, payloadSha256: result.payloadSha256 };
+  const report = { ...filter.report, droppedMalformed: result.malformedEvents, importSha256: result.importSha256, payloadSha256: result.payloadSha256 };
   if (metadata.traceTopographyReduction !== undefined && metadata.traceTopographySourceReduction === undefined) {
     metadata.traceTopographySourceReduction = metadata.traceTopographyReduction;
   }

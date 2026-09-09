@@ -86,21 +86,43 @@ describe("streaming trace ingestion", () => {
     expect(retained[2]).toMatchObject({ ph: "X", ts: 1100, dur: 300 });
   });
 
-  it("preserves negative sample deltas and remaps sample trace IDs after windowing", () => {
+  it("preserves negative sample deltas and passes trace-id to node-id maps through after windowing", () => {
     const retained: TraceEvent[] = [];
     const filter = new TraceFilter((e) => retained.push(e), [1100, 1400]);
     filter.accept(event(1000, { name: "Profile", ph: "P", id: "p" }));
+    // trace_ids is keyed by trace id, not sample index (SamplesIntegrator
+    // reads traceIds[traceId] to find a node); nodes are all kept, so the
+    // map must survive intact even when most samples fall outside the window.
+    const traceIds = { 4001: 1, 4002: 1, 90210: 1 };
     filter.accept(event(2000, { name: "ProfileChunk", ph: "P", id: "p", args: { data: {
-      cpuProfile: { nodes: [{ id: 1, hitCount: 100 }], samples: [1, 1, 1, 1], trace_ids: { 0: "outside", 1: "inside-a", 2: "inside-b" } },
+      cpuProfile: { nodes: [{ id: 1, hitCount: 100 }], samples: [1, 1, 1, 1], trace_ids: traceIds },
       timeDeltas: [50, 200, -50, 500], lines: [1, 2, 3, 4], columns: [10, 20, 30, 40],
     } } }));
     expect(retained[1].args?.data).toMatchObject({
-      cpuProfile: { samples: [1, 1], trace_ids: { 0: "inside-a", 1: "inside-b" } },
+      cpuProfile: { samples: [1, 1], trace_ids: traceIds },
       timeDeltas: [150, -50], lines: [2, 3], columns: [20, 30],
     });
-    const data = retained[1].args?.data as { cpuProfile: { nodes: Record<string, unknown>[]; trace_ids: Record<string, unknown> } };
+    const data = retained[1].args?.data as { cpuProfile: { nodes: Record<string, unknown>[] } };
     expect(data.cpuProfile.nodes[0]).not.toHaveProperty("hitCount");
-    expect(data.cpuProfile.trace_ids).not.toHaveProperty("2");
+  });
+
+  it("skips malformed array members, counts them, and anchors the overview on tracing start", async () => {
+    const stray = event(1_000, { name: "PipelineReporter", ph: "b", dur: undefined });
+    const events = [
+      stray,
+      { name: "TracingStartedInBrowser", ph: "I", ts: 9_000_000, pid: 1, tid: 1, cat: "disabled-by-default-devtools.timeline" } as TraceEvent,
+      event(9_100_000),
+      { name: "NoTimestamp", ph: "X", pid: 1, tid: 1 } as unknown as TraceEvent,
+      { name: "NegativeDuration", ph: "X", ts: 9_200_000, dur: -5, pid: 1, tid: 1 } as TraceEvent,
+      event(9_300_000),
+    ];
+    const prepared = await prepareTrace(blob(events));
+    expect(prepared.report.droppedMalformed).toBe(2);
+    expect(prepared.traceEvents.map((e) => e.name)).toEqual(["PipelineReporter", "TracingStartedInBrowser", "RunTask", "RunTask"]);
+    const overview = await scanTrace(blob(events));
+    expect(overview.startUs).toBe(9_000_000);
+    expect(overview.counts.reduce((sum, count) => sum + count, 0)).toBe(3);
+    expect(readTraceReduction(prepared.report)).toEqual(prepared.report);
   });
 
   it("rejects oversized individual values and does not pollute object prototypes", async () => {

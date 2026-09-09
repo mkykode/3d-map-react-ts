@@ -9,7 +9,12 @@ export interface TraceEvent extends Record<string, unknown> {
   args?: Record<string, unknown>;
 }
 
-/** Absolute trace timestamps, in microseconds; the end is exclusive. */
+/**
+ * Absolute trace timestamps, in microseconds; the end is exclusive.
+ * Ingest runs upstream of the adapter on raw trace time, so microseconds are
+ * correct here; the adapter still owns the only conversion to model
+ * milliseconds.
+ */
 export type TraceWindow = readonly [startUs: number, endUs: number];
 
 export interface TraceOverview {
@@ -31,6 +36,8 @@ export interface TraceReduction {
   retainedEventCount: number;
   droppedBookkeeping: number;
   droppedSourceEvents: number;
+  /** Events that were not well-formed trace events; skipped, not fatal. */
+  droppedMalformed: number;
   outsideWindow: number;
   omittedEnvelopeFields: string[];
   window: TraceWindow | null;

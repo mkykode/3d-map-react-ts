@@ -32,8 +32,8 @@ export function TraceImport() {
   return <>
     {reports.length > 0 && <aside className="trace-reduction" aria-label="Import scope">
       <details><summary>Reduced visualization {reports.some(({ report }) => report.window) ? "· selected interval" : "· full recording"}</summary>
-        {reports.map(({ label, report }) => <p key={label}>{label}: {report.retainedEventCount.toLocaleString()} events retained from {report.sourceEventCount.toLocaleString()}. Bookkeeping omitted: {report.droppedBookkeeping.toLocaleString()}; source events omitted: {report.droppedSourceEvents.toLocaleString()}. {report.window && "Window boundaries can truncate network requests, async relationships and page-wide metrics. The timeline starts at the selected interval."} {report.omittedEnvelopeFields.length > 0 && `Envelope fields omitted: ${report.omittedEnvelopeFields.join(", ")}.`}</p>)}
-        <p>Memory counters are not thinned. Keep the original recording for complete evidence and controlled experiments.</p>
+        {reports.map(({ label, report }) => <p key={label}>{label}: {report.retainedEventCount.toLocaleString()} events retained from {report.sourceEventCount.toLocaleString()}. V8 call and debugger bookkeeping omitted: {report.droppedBookkeeping.toLocaleString()}; embedded source events omitted: {report.droppedSourceEvents.toLocaleString()}{report.droppedMalformed > 0 && `; malformed events skipped: ${report.droppedMalformed.toLocaleString()}`}. {report.window && "Window boundaries can truncate network requests, async relationships and page-wide metrics. The timeline starts at the selected interval."} {report.omittedEnvelopeFields.length > 0 && `Envelope fields omitted: ${report.omittedEnvelopeFields.join(", ")}.`}</p>)}
+        <p>Omitted v8.callFunction wrappers were stack levels in the exact model, so calls nested inside them sit one level shallower and their parents show more self time than an exact import. Memory counters are not thinned. Keep the original recording for complete evidence and controlled experiments.</p>
       </details>
       {last && <button type="button" className="btn small" onClick={reopen}>Change interval</button>}
     </aside>}
@@ -91,7 +91,7 @@ function WindowPicker({ overview, initialWindow }: { overview: TraceOverview; in
       <label>End (seconds)<input type="number" min={0} max={duration} step="any" value={Number.isNaN(end) ? "" : end} onChange={(event) => setEnd(event.target.valueAsNumber)} /></label>
     </div>
     <label className="trace-window-slider">Move interval<input type="range" min={0} max={valid ? Math.max(0, duration - (end - start)) : 0} step={0.01} value={valid ? start : 0} disabled={!valid || end - start >= duration} onChange={(event) => { const next = event.target.valueAsNumber; setEnd(Math.min(duration, next + end - start)); setStart(next); }} /></label>
-    <p className="trace-import-note">Bookkeeping and embedded sources are omitted. CPU sample timing is preserved; memory counters inside the interval are not thinned. Window boundaries can truncate network and async events. This is not a complete page-load measurement.</p>
+    <p className="trace-import-note">V8 call wrappers, debugger bookkeeping and embedded sources are omitted, so nesting depth and parent self time differ from an exact import. CPU sample timing is preserved; memory counters inside the interval are not thinned. Window boundaries can truncate network and async events. This is not a complete page-load measurement.</p>
     {!valid && <p role="status">Enter a start and end within the recording, with end after start.</p>}
     <div className="trace-import-actions">
       <button className="btn active" type="button" disabled={!valid} onClick={() => void confirm([overview.startUs + start * 1e6, overview.startUs + end * 1e6])}>Load selected interval</button>

@@ -11,6 +11,14 @@ export interface TraceStreamConsumer {
   flush?: () => Promise<void>;
 }
 
+export interface TraceStreamResult {
+  importSha256: string;
+  payloadSha256: string;
+  decompressedBytes: number;
+  /** Array members that were not well-formed trace events; skipped, counted. */
+  malformedEvents: number;
+}
+
 export async function isGzip(blob: Blob): Promise<boolean> {
   const magic = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
   return magic[0] === 0x1f && magic[1] === 0x8b;
@@ -21,7 +29,7 @@ export async function readTraceStream(
   blob: Blob,
   consumer: TraceStreamConsumer,
   options: StreamOptions = {},
-): Promise<{ importSha256: string; payloadSha256: string; decompressedBytes: number }> {
+): Promise<TraceStreamResult> {
   if (blob.size > STREAM_LIMITS.inputBytes) throw new Error("Trace exceeds the 8 GiB streaming input limit.");
   const check = () => { options.signal?.throwIfAborted(); options.checkCanceled?.(); };
   check();
@@ -48,12 +56,12 @@ export async function readTraceStream(
   let rootKey = "";
   let hasEvents = false;
   let eventCount = 0;
+  let malformedEvents = 0;
   let lastTokenOffset = 0;
   let valueStart = 0;
   let inValue = false;
   let valueDepth = 0;
   const fields = new Set<string>();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
 
   tokenizer.onToken = (token) => {
     lastTokenOffset = token.offset;
@@ -69,7 +77,9 @@ export async function readTraceStream(
         if ((rootArray && stack.length === 1) || (!rootArray && stack.length === 2 && stack[1].key === "traceEvents")) {
           eventCount++;
           if (eventCount > STREAM_LIMITS.events) throw new Error("Streaming event limit exceeded.");
-          if (!isTraceEvent(value)) throw new Error(`Invalid trace event at index ${eventCount - 1}.`);
+          // One odd member must not abort a gigabyte import; the exact path
+          // tolerated these too. Skipped members are counted and reported.
+          if (!isTraceEvent(value)) { malformedEvents++; return; }
           consumer.event(value, lastTokenOffset - valueStart + 1);
         } else if (stack.length === 1 && typeof key === "string") {
           consumer.field(key, value);
@@ -125,8 +135,10 @@ export async function readTraceStream(
         decompressedBytes += chunk.byteLength;
         if (decompressedBytes > STREAM_LIMITS.decompressedBytes) throw new Error("Streaming decompressed byte limit exceeded (16 GiB).");
         if (compressed && options.hashes !== false) payloadHash.update(chunk);
-        // Fatal decoding rejects invalid UTF-8, including split multi-byte sequences.
-        tokenizer.write(decoder.decode(chunk, { stream: true }));
+        // The tokenizer consumes bytes directly: it completes multi-byte
+        // characters split across chunks itself and rejects invalid UTF-8, so
+        // decoding to a string here would only add a second transcoding pass.
+        tokenizer.write(chunk);
         if (decompressedBytes - lastTokenOffset > STREAM_LIMITS.valueBytes || (inValue && decompressedBytes - valueStart > STREAM_LIMITS.valueBytes)) {
           throw new Error("Individual trace JSON value exceeds the 16 MiB limit.");
         }
@@ -138,15 +150,16 @@ export async function readTraceStream(
         }
       }
     }
-    tokenizer.write(decoder.decode());
     if (!tokenizer.isEnded) tokenizer.end();
-    if (!hasEvents || eventCount === 0) throw new Error("Trace contains no events.");
+    if (!hasEvents || eventCount - malformedEvents === 0) throw new Error("Trace contains no events.");
     check();
     options.onProgress?.(blob.size, blob.size);
     const importSha256 = options.hashes === false ? "" : bytesToHex(importedHash.digest());
-    return { importSha256, payloadSha256: compressed && options.hashes !== false ? bytesToHex(payloadHash.digest()) : importSha256, decompressedBytes };
+    return { importSha256, payloadSha256: compressed && options.hashes !== false ? bytesToHex(payloadHash.digest()) : importSha256, decompressedBytes, malformedEvents };
   } finally {
-    await reader.cancel();
+    // cancel() rejects on an already-errored stream (abort in the transform,
+    // corrupt gzip); the original error is what propagates, not this one.
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
     importedHash.destroy();
     payloadHash.destroy();
