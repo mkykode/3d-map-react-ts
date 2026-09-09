@@ -1,8 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useAppStore, useHoverStore, type ViewId } from "./state/store";
 import { initUrlState } from "./lib/urlState";
-import { LANE_GAP, SURFACE } from "./scene/layout";
+import { sceneBounds } from "./scene/sceneBounds";
+import { SceneEnvironment } from "./scene/SceneEnvironment";
+import { LabelLayer } from "./scene/ScreenLabels";
+import { CameraFootprint } from "./scene/CameraFootprint";
+import { SCENE_DEBUG } from "./scene/diagnostics";
+import { regressionProjectionBounds } from "./scene/regressionPicking";
+import { diffProjectionBounds } from "./scene/diffLayout";
+import { SceneBoundary } from "./ui/SceneBoundary";
+import { scenePointerEvents } from "./scene/pointerEvents";
+import { ShaderWarmup } from "./scene/ShaderWarmup";
 import { CameraRig } from "./scene/CameraRig";
 import { Minimap } from "./scene/Minimap";
 import { RenderActivity } from "./scene/RenderActivity";
@@ -16,7 +25,6 @@ import { RhythmScene } from "./scene/RhythmScene";
 import { CityScene } from "./scene/CityScene";
 import { DiffScene } from "./scene/DiffScene";
 import { RegressionScene } from "./scene/RegressionScene";
-import { GrowIn } from "./scene/GrowIn";
 import { Toolbar } from "./ui/Toolbar";
 import { LegendPanel } from "./ui/LegendPanel";
 import { DetailsPanel } from "./ui/DetailsPanel";
@@ -115,11 +123,9 @@ function App() {
   }, []);
 
   const hiddenLanes = useAppStore((s) => s.hiddenLanes);
-  const laneDepth = model
-    ? model.lanes.filter((l) => !hiddenLanes.has(l.meta.id)).length * LANE_GAP
-    : 60;
-  const worldDepth =
-    view === "rhythm" ? 92 : view === "city" ? 74 : view === "diff" ? 46 : laneDepth;
+  const preset = useAppStore((s) => s.preset);
+  const bounds = useMemo(() => view === "diff" && regressionProjection ? regressionProjectionBounds(regressionProjection.marks) : view === "diff" && findingProjection ? diffProjectionBounds(findingProjection.marks) : sceneBounds(model, view, hiddenLanes, preset), [model, view, hiddenLanes, preset, regressionProjection, findingProjection]);
+  const worldDepth = bounds.max[2];
 
   return (
     <div className="shell">
@@ -136,7 +142,7 @@ function App() {
               and F tilt. Home fits all, Shift+Home fits the selection, and 0
               resets. Keyboard commands work while this view is focused.
             </p>
-            <Canvas
+            <SceneBoundary><Canvas
               id="trace-camera"
               role="application"
               aria-label={
@@ -150,15 +156,17 @@ function App() {
               aria-keyshortcuts={CAMERA_ARIA_KEYSHORTCUTS}
               tabIndex={0}
               frameloop="demand"
+              events={scenePointerEvents}
+              flat
               dpr={[1, 2]}
               gl={{ antialias: true }}
+              onPointerMissed={(event) => { if (event.type === "click") useAppStore.getState().setSelection(null); }}
             >
-              <color attach="background" args={[SURFACE]} />
-              <ambientLight intensity={1.15} />
-              <directionalLight position={[40, 70, 30]} intensity={1.6} />
-              <RenderActivity hostId="trace-camera" />
-              <CameraRig worldDepth={worldDepth} />
-              <GrowIn dep={model ? `${view}-${model.boundsMinUs}` : view}>
+              <SceneEnvironment bounds={bounds} />
+              {SCENE_DEBUG && <RenderActivity hostId="trace-camera" />}
+              <CameraRig bounds={bounds} />
+              <CameraFootprint bounds={bounds} side={preset === "side"} />
+              <LabelLayer>
                 {model && view === "canyon" && <CanyonScene model={model} />}
                 {model && view === "terrain" && <TerrainScene model={model} />}
                 {model && view === "rhythm" && <RhythmScene model={model} />}
@@ -179,8 +187,9 @@ function App() {
                       selectAnalysisFinding(mark.findingId, mark.evidenceId)}
                   />
                 )}
-              </GrowIn>
-            </Canvas>
+              </LabelLayer>
+              <ShaderWarmup token={`${view}-${model?.boundsMinUs ?? "empty"}`} />
+            </Canvas></SceneBoundary>
             <Minimap worldDepth={worldDepth} />
             <LegendPanel />
             <DetailsPanel />

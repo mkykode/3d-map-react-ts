@@ -6,12 +6,11 @@ export const TIME_W = 160;
 export const LANE_GAP = 7;
 export const LANE_D = 5;
 export const BOX_H = 0.6;
-export const DEPTH_CAP = 26;
 export const TERRAIN_H = 10;
 export const CITY_H = 14;
 export const RHYTHM_H = 8;
 
-export const INK = "#ffffff";
+export const INK = "#f5f5f7";
 export const INK_SECONDARY = "#c3c2b7";
 export const INK_MUTED = "#8a8f98";
 export const SURFACE = "#131418";
@@ -23,8 +22,6 @@ export const xOf = (ms: number, rangeMs: number): number =>
 
 export const msOf = (x: number, rangeMs: number): number =>
   (x / TIME_W) * rangeMs;
-
-export const laneZ = (laneIndex: number): number => laneIndex * LANE_GAP;
 
 export function scaleHeight(
   value: number,
@@ -41,6 +38,7 @@ export function scaleHeight(
 
 /** 1-2-5 tick step covering roughly `target` divisions. */
 export function niceTickStep(rangeMs: number, target = 8): number {
+  if (!Number.isFinite(rangeMs) || rangeMs <= 0) return 1;
   const raw = rangeMs / target;
   const pow = Math.pow(10, Math.floor(Math.log10(raw)));
   for (const mult of [1, 2, 5, 10]) {

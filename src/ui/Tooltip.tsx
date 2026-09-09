@@ -7,27 +7,31 @@ export function Tooltip() {
   const model = useAppStore((s) => s.model);
   if (!hover || !model) return null;
 
-  const lane = model.lanes[hover.lane];
+  const lane = model.lanes.find((l) => l.meta.id === hover.lane);
   const i = hover.idx;
-  const cat = CATEGORIES[lane.catIds[i]];
+  if (!hover.summary && (!lane || i < 0 || i >= lane.starts.length)) return null;
+  const cat = CATEGORIES[hover.summary?.catId ?? lane!.catIds[i]];
 
   return (
     <div
       className="tooltip"
+      role="tooltip"
       style={{
-        left: Math.min(hover.clientX + 14, window.innerWidth - 280),
-        top: Math.min(hover.clientY + 12, window.innerHeight - 120),
+        left: Math.max(8, Math.min(hover.clientX + 14, window.innerWidth - 292)),
+        top: Math.max(8, Math.min(hover.clientY + 12, window.innerHeight - 140)),
       }}
     >
       <div className="tooltip-title">
         <span className="swatch" style={{ background: cat.color }} />
-        {model.names[lane.nameIds[i]]}
+        {hover.summary?.title ?? model.names[lane!.nameIds[i]]}
       </div>
       <div className="tooltip-body">
-        {formatMs(lane.durs[i])} ({formatMs(lane.selfTimes[i])} self) ·{" "}
+        {hover.summary ? hover.summary.detail : <>
+        {formatMs(lane!.durs[i])} ({formatMs(lane!.selfTimes[i])} self) ·{" "}
         {cat.label}
         <br />
-        {lane.meta.name} · depth {lane.depths[i]} · at {formatMs(lane.starts[i])}
+        {lane!.meta.name} · depth {lane!.depths[i]} · at {formatMs(lane!.starts[i])}
+        </>}
       </div>
     </div>
   );

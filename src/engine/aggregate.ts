@@ -91,7 +91,7 @@ export function bucketize(
       }
       dominantCat[b] = best;
     }
-    return { laneId: lane.meta.id, busy, dominantCat };
+    return { laneId: lane.meta.id, busy, dominantCat, categoryTimes: perCat };
   });
 
   return { bucketMs, bucketCount, t0, t1, lanes: result };
@@ -144,33 +144,49 @@ export function rhythmFold(
   rangeMs: number,
   cellMs = 10,
 ): RhythmGrid {
+  if (!Number.isFinite(rangeMs) || rangeMs < 0 || !Number.isSafeInteger(Math.ceil(rangeMs))) throw new RangeError("Rhythm range must be finite and non-negative");
+  if (!Number.isFinite(cellMs) || cellMs < 1 || !Number.isInteger(1000 / cellMs)) throw new RangeError("Rhythm cell size must divide one second exactly");
   const cellsPerSecond = Math.round(1000 / cellMs);
-  const seconds = Math.max(1, Math.ceil(rangeMs / 1000));
+  const totalSeconds = Math.max(1, Math.ceil(rangeMs / 1000));
+  const secondsPerColumn = Math.max(1, Math.ceil(totalSeconds / 256));
+  const seconds = Math.ceil(totalSeconds / secondsPerColumn);
   const cells = new Float32Array(seconds * cellsPerSecond);
+  const columnMs = secondsPerColumn * 1000;
   const { starts } = lane;
+  const addPartialSecond = (start: number, end: number, column: number) => {
+    const secondStart = Math.floor(start / 1000) * 1000;
+    const first = Math.floor((start - secondStart) / cellMs);
+    const last = Math.min(cellsPerSecond, Math.ceil((end - secondStart) / cellMs));
+    for (let cell = first; cell < last; cell++) cells[column * cellsPerSecond + cell] += Math.max(0, Math.min(end, secondStart + (cell + 1) * cellMs) - Math.max(start, secondStart + cell * cellMs));
+  };
 
   for (let i = 0; i < starts.length; i++) {
     const intervalEnd = lane.exclusiveOffsets[i + 1];
     for (let interval = lane.exclusiveOffsets[i]; interval < intervalEnd; interval++) {
-      const end = lane.exclusiveEnds[interval];
-      let cursor = lane.exclusiveStarts[interval];
+      const end = Math.min(rangeMs, lane.exclusiveEnds[interval]);
+      let cursor = Math.max(0, lane.exclusiveStarts[interval]);
       while (cursor < end) {
-        const cellIndex = Math.floor(cursor / cellMs);
-        const cellEnd = (cellIndex + 1) * cellMs;
-        const overlap = Math.min(end, cellEnd) - cursor;
-        const second = Math.floor((cellIndex * cellMs) / 1000);
-        const offsetCell = cellIndex % cellsPerSecond;
-        if (second < seconds) {
-          cells[second * cellsPerSecond + offsetCell] += overlap;
+        const column = Math.min(seconds - 1, Math.floor(cursor / columnMs));
+        const columnEnd = Math.min(end, (column + 1) * columnMs);
+        const firstBoundary = Math.min(columnEnd, Math.ceil(cursor / 1000) * 1000);
+        if (firstBoundary > cursor) {
+          addPartialSecond(cursor, firstBoundary, column);
+          cursor = firstBoundary;
         }
-        cursor = cellEnd;
+        const wholeSeconds = Math.floor((columnEnd - cursor) / 1000);
+        if (wholeSeconds > 0) {
+          for (let cell = 0; cell < cellsPerSecond; cell++) cells[column * cellsPerSecond + cell] += wholeSeconds * cellMs;
+          cursor += wholeSeconds * 1000;
+        }
+        if (cursor < columnEnd) addPartialSecond(cursor, columnEnd, column);
+        cursor = columnEnd;
       }
     }
   }
 
   let maxBusy = 0;
   for (const v of cells) if (v > maxBusy) maxBusy = v;
-  return { cells, seconds, cellsPerSecond, cellMs, maxBusy };
+  return { cells, seconds, secondsPerColumn, cellsPerSecond, cellMs, maxBusy };
 }
 
 /**

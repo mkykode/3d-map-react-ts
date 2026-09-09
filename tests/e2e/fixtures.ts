@@ -61,6 +61,6 @@ export function makeEvidenceCaseFixture(): EvidenceCaseFixture {
 }
 
 export async function openWorkspace(page: Page): Promise<void> {
-  await page.goto("/");
+  await page.goto("/?debug");
   await page.getByText("Trace Topography", { exact: true }).waitFor();
 }

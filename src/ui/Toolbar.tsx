@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { PAN_PLANE_AXES, PAN_PLANES } from "../scene/cameraNavigation";
 import {
   CAMERA_CONTROL_DESCRIPTORS,
@@ -34,8 +35,15 @@ export function Toolbar() {
     trackPickerOpen,
     toggleTrackPicker,
     dispatchCameraInput,
-  } = useAppStore();
+  } = useAppStore(useShallow((s) => ({
+    view: s.view, setView: s.setView, preset: s.preset, setPreset: s.setPreset,
+    panPlane: s.panPlane, setPanPlane: s.setPanPlane, scale: s.scale, setScale: s.setScale,
+    model: s.model, loadPrimaryFile: s.loadPrimaryFile, loadSecondaryFile: s.loadSecondaryFile,
+    hudOpen: s.hudOpen, toggleHud: s.toggleHud, trackPickerOpen: s.trackPickerOpen,
+    toggleTrackPicker: s.toggleTrackPicker, dispatchCameraInput: s.dispatchCameraInput,
+  })));
   const primaryInput = useRef<HTMLInputElement>(null);
+  const supportsScale = view === "terrain" || view === "city" || view === "rhythm";
   const secondaryInput = useRef<HTMLInputElement>(null);
   // Collapsed by default on phone widths so the header never buries the scene.
   const [controlsOpen, setControlsOpen] = useState(
@@ -90,7 +98,7 @@ export function Toolbar() {
                 p === "top"
                   ? "Top view = flame chart"
                   : p === "side"
-                    ? "Side view = utilization curve"
+                    ? "Side view = separated stack profiles"
                     : "Free orbit"
               }
             >
@@ -159,9 +167,10 @@ export function Toolbar() {
           type="button"
           className="seg"
           onClick={() => setScale(scale === "linear" ? "log" : "linear")}
-          title="Elevation scale"
+          disabled={!supportsScale}
+          title={supportsScale ? "Elevation scale" : "This view uses a fixed linear scale"}
         >
-          scale: {scale}
+          scale: {supportsScale ? scale : "linear"}
         </button>
         <button
           type="button"

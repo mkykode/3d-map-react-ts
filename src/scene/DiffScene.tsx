@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { EvidenceIdentity } from "../domain/evidence";
 import { DIVERGING } from "../engine/categories";
@@ -9,18 +8,22 @@ import type {
   FindingProjectionMark,
 } from "../engine/findingContract";
 import {
-  GROUND,
-  INK_SECONDARY,
   LANE_D,
   LANE_GAP,
 } from "./layout";
+import { DataMaterial } from "./DataMaterial";
+import { ScreenLabel } from "./ScreenLabels";
+import { SCENE_DEBUG } from "./diagnostics";
+import { uploadInstances } from "./instanceBuffers";
+import { diffMarkBounds, diffProjectionBounds, DIFF_MARK_W as MARK_W, DIFF_MARK_H as MARK_H, DIFF_ZERO_Y as ZERO_Y } from "./diffLayout";
+import { BoxFeedback } from "./BoxFeedback";
+import { useHoverStore } from "../state/store";
 
-const MARK_W = 6;
-const MARK_H = 10;
-const ZERO_Y = 5;
 const dummy = new THREE.Object3D();
 const pickPoint = new THREE.Vector3();
-const selectedColor = new THREE.Color("#f0f4fa");
+const regressionColor = new THREE.Color(DIVERGING.regression);
+const improvementColor = new THREE.Color(DIVERGING.improvement);
+const neutralColor = new THREE.Color(DIVERGING.neutral);
 
 export function DiffScene({
   projection,
@@ -32,6 +35,8 @@ export function DiffScene({
   onSelect: (mark: FindingProjectionMark) => void;
 }) {
   const domains = [...new Set(projection.marks.map((mark) => mark.domain))];
+  const bounds = useMemo(() => diffProjectionBounds(projection.marks), [projection]);
+  const hoveredIndex = useHoverStore((s) => s.hover?.lane === -5 ? s.hover.idx : -1);
   const width = Math.max(
     48,
     ...projection.marks.map((mark) => (mark.domainRank + 1) * (MARK_W + 2)),
@@ -59,19 +64,13 @@ export function DiffScene({
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
       const color = colorFor(mark);
-      mesh.setColorAt(
-        index,
-        mark.evidenceId === selectedEvidenceId
-          ? color.clone().lerp(selectedColor, 0.32)
-          : color,
-      );
+      mesh.setColorAt(index, color);
     });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [projection, selectedEvidenceId]);
+    uploadInstances(mesh, projection.marks.length, bounds);
+  }, [projection, bounds]);
 
   useFrame(() => {
+    if (!SCENE_DEBUG) return;
     const mesh = ref.current;
     if (!mesh || projection.marks.length === 0) return;
     const targetIndex = Math.max(0, projection.marks.findIndex(
@@ -99,13 +98,6 @@ export function DiffScene({
     <group>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[width / 2, -0.06, worldDepth / 2 - LANE_GAP / 2]}
-      >
-        <planeGeometry args={[width + 16, worldDepth + 16]} />
-        <meshBasicMaterial color={GROUND} />
-      </mesh>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
         position={[width / 2, ZERO_Y, worldDepth / 2 - LANE_GAP / 2]}
       >
         <planeGeometry args={[width + 8, worldDepth + 8]} />
@@ -121,42 +113,45 @@ export function DiffScene({
         ref={ref}
         args={[undefined, undefined, Math.max(projection.marks.length, 1)]}
         count={projection.marks.length}
-        frustumCulled={false}
+        onPointerMove={(event) => {
+          if (event.instanceId === undefined) return;
+          event.stopPropagation();
+          const mark = projection.marks[event.instanceId];
+          useHoverStore.getState().setHover({ lane: -5, idx: event.instanceId, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY, summary: { title: mark.title, catId: 6, detail: `${mark.status} · ${mark.domain} · ${mark.unit}` } });
+        }}
+        onPointerOut={() => useHoverStore.getState().setHover(null)}
         onClick={(event: ThreeEvent<MouseEvent>) => {
           event.stopPropagation();
-          if (event.instanceId === undefined) return;
+          if (event.instanceId === undefined || event.delta > 4) return;
           const mark = projection.marks[event.instanceId];
           if (mark) onSelect(mark);
         }}
       >
         <boxGeometry />
-        <meshLambertMaterial />
+        <DataMaterial />
       </instancedMesh>
+      {projection.marks.filter((m, i) => m.evidenceId === selectedEvidenceId || i === hoveredIndex).map((mark) => <BoxFeedback key={mark.evidenceId} id={`diff-feedback-${mark.evidenceId}`} bounds={diffMarkBounds(mark, domains)} label={mark.title} />)}
       {domains.map((domain, index) => {
         const mark = projection.marks.find((candidate) => candidate.domain === domain);
         return (
-          <Billboard key={domain} position={[-3, ZERO_Y, index * LANE_GAP]}>
-            <Text fontSize={1.05} color={INK_SECONDARY} anchorX="right">
+          <ScreenLabel key={domain} id={`diff-domain-${domain}`} position={[-3, ZERO_Y, index * LANE_GAP]} align="right" priority={30}>
               {domain} · {mark?.unit ?? "unknown"}
-            </Text>
-          </Billboard>
+          </ScreenLabel>
         );
       })}
-      <Billboard position={[width / 2, ZERO_Y + MARK_H + 4, worldDepth / 2]}>
-        <Text fontSize={1.15} color={INK_SECONDARY} anchorX="center">
+      <ScreenLabel id="diff-units" position={[width / 2, ZERO_Y + MARK_H + 4, worldDepth / 2]} priority={40}>
           ranked findings · height is normalized only within each domain and unit
-        </Text>
-      </Billboard>
+      </ScreenLabel>
     </group>
   );
 }
 
 function colorFor(mark: FindingProjectionMark): THREE.Color {
   if (mark.status === "regression" || mark.status === "added") {
-    return new THREE.Color(DIVERGING.regression);
+    return regressionColor;
   }
   if (mark.status === "improvement" || mark.status === "removed") {
-    return new THREE.Color(DIVERGING.improvement);
+    return improvementColor;
   }
-  return new THREE.Color(DIVERGING.neutral);
+  return neutralColor;
 }

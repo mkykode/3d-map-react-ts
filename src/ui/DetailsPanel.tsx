@@ -17,8 +17,9 @@ export function DetailsPanel() {
       model.markers.find((m) => m.name === "navigationStart")?.ts ?? 0;
 
     if (selection.kind === "entry") {
-      const lane = model.lanes[selection.lane];
+      const lane = model.lanes.find((l) => l.meta.id === selection.lane);
       const i = selection.idx;
+      if (!lane || i < 0 || i >= lane.starts.length) return null;
       const callFrameId = lane.callFrameIds[i];
       const callFrame = callFrameId > 0 ? model.callFrames[callFrameId - 1] : null;
       const functionName = callFrame

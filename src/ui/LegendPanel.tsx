@@ -1,12 +1,5 @@
-import * as THREE from "three";
 import { CATEGORIES, DIVERGING, SEQUENTIAL_RAMP, STATUS_SERIOUS } from "../engine/categories";
 import { useAppStore } from "../state/store";
-
-// Matches the canyon's loading-blue lerped toward status red for blocking
-// requests, so the chip shows the exact rendered hue.
-const BLOCKING_REQUEST_COLOR = `#${new THREE.Color(CATEGORIES[0].color)
-  .lerp(new THREE.Color(STATUS_SERIOUS), 0.4)
-  .getHexString()}`;
 
 export function LegendPanel() {
   const view = useAppStore((s) => s.view);
@@ -14,33 +7,34 @@ export function LegendPanel() {
   return (
     <aside className="panel legend" aria-label="Legend">
       <h3>Legend</h3>
+      {view === "canyon" && <p className="legend-encoding">Width: duration · height: stack<br />Thickness: self-time share</p>}
       {view !== "rhythm" && view !== "diff" && (
-        <ul className="legend-list">
+        <ul className="legend-list legend-categories">
           {CATEGORIES.map((cat) => (
             <li key={cat.key}>
               <span className="swatch" style={{ background: cat.color }} />
               {cat.label}
             </li>
           ))}
-          <li>
-            <span className="swatch" style={{ background: STATUS_SERIOUS }} />
-            Long task (&gt;50 ms) / dropped frame
-          </li>
+          {(view === "canyon" || view === "terrain") && <li>
+            <span className="swatch" style={{ background: STATUS_SERIOUS, ...(view === "canyon" ? { height: 3 } : {}) }} />
+            {view === "canyon" ? "Long task ≥50 ms" : "Long task / dropped frame"}
+          </li>}
           {(view === "canyon" || view === "terrain") && (
             <>
-              <li>
+              {view === "canyon" && <li>
                 <span
                   className="swatch"
-                  style={{ background: BLOCKING_REQUEST_COLOR }}
+                  style={{ background: `repeating-linear-gradient(90deg, ${STATUS_SERIOUS} 0 3px, transparent 3px 6px)`, height: 3 }}
                 />
-                Render-blocking request
-              </li>
+                Blocking request
+              </li>}
               <li>
                 <span
                   className="swatch"
                   style={{ background: DIVERGING.neutral, opacity: 0.55 }}
                 />
-                Waiting on network (main idle)
+                <span title="Main thread idle while a render-blocking request is in flight; this is correlation, not proof of causality.">Idle + blocking request</span>
               </li>
             </>
           )}
@@ -61,8 +55,9 @@ export function LegendPanel() {
             <span>busy</span>
           </div>
           <p className="hint">
-            Each column is one second; depth is the millisecond offset inside
-            that second. Aligned ridges = periodic work.
+            Columns fold time into seconds; long traces group seconds together.
+            Depth is the millisecond offset within each second. Height and shade
+            show busy time relative to the busiest cell. Aligned ridges suggest periodic work.
           </p>
         </>
       )}
@@ -83,19 +78,22 @@ export function LegendPanel() {
         </ul>
       )}
       {view === "canyon" && (
-        <p className="hint">
-          Top view = flame chart. Click an event for details and causality
-          arcs. Trackpad scroll pans; pinch, mouse wheel, or W/S zooms. A/D and
-          arrow keys pan in the selected XY, XZ, or YZ world plane when the 3D
-          view is focused; Shift moves faster and Alt moves precisely.
-        </p>
+        <details className="legend-help"><summary>How to read this view</summary><p className="hint">
+          In CPU lanes, thicker events spend more time executing their own work.
+          Top unfolds stack rows; Side separates lanes. Deep stacks use one
+          shared depth scale. White dots mark tiny selected calls. Zoom reveals smaller events; click an aggregate
+          to expand it. Click an event to select;
+          double-click to frame. Hover connects parent calls.
+        </p></details>
       )}
       {view === "terrain" && (
         <p className="hint">
-          Elevation = busy time per bucket. Red bars above the main thread
-          mark tasks that ran longer than 50 ms.
+          Elevation = CPU utilization per bucket; full height = 100%.
+          Bands preserve category shares. Network height is normalized to its
+          peak concurrent requests. Click a bucket to inspect its time window.
         </p>
       )}
+      {view === "city" && <p className="hint">Footprint = inclusive time, which can overlap between nested calls. Height = self time. The remaining activities share a labeled building. Click to select; double-click to frame.</p>}
     </aside>
   );
 }

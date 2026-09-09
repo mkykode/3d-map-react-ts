@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   OrbitControls,
@@ -25,14 +25,19 @@ import {
   useCameraCommandRuntime,
   useCameraRuntime,
 } from "./cameraRuntime";
-import { BOX_H, DEPTH_CAP, TIME_W } from "./layout";
+import { SCENE_DEBUG } from "./diagnostics";
+import { MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM } from "./cameraLimits";
+import { cityBuildingForName, cityBuildings } from "./cityLayout";
+import { aggregateSelectionBounds, selectionNameId } from "./traceSelection";
+import { CITY_H, scaleHeight } from "./layout";
+import { CITY_X } from "./sceneBounds";
+import { diffMarkBounds } from "./diffLayout";
 import {
   regressionMarkBounds,
-  regressionProjectionBounds,
 } from "./regressionPicking";
 
 /** Compose camera projections, controls, store state, and runtime controllers. */
-export function CameraRig({ worldDepth }: { worldDepth: number }) {
+export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) {
   const preset = useAppStore((state) => state.preset);
   const cameraMode = useAppStore((state) => state.cameraMode);
   const panPlane = useAppStore((state) => state.panPlane);
@@ -40,9 +45,14 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
   const model = useAppStore((state) => state.model);
   const selection = useAppStore((state) => state.selection);
   const hiddenLanes = useAppStore((state) => state.hiddenLanes);
+  const brush = useAppStore((state) => state.brush);
+  const zoomed = useAppStore((state) => state.zoomed);
+  const scale = useAppStore((state) => state.scale);
   const regressionProjection = useAppStore(
     (state) => state.analysisRegressionProjection,
   );
+  const findingProjection = useAppStore((s) => s.analysisFindingProjection);
+  const selectedEvidenceId = useAppStore((s) => s.analysisScope?.selectedEvidenceId ?? null);
   const selectedFindingId = useAppStore(
     (state) => state.analysisScope?.selectedFindingId ?? null,
   );
@@ -58,15 +68,21 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
   const [controlsRevision, setControlsRevision] = useState(0);
   const poseRevision = useRef(0);
   const size = useThree((state) => state.size);
+  const camera = useThree((state) => state.camera);
+  const fitSize = useMemo(() => ({ width: Math.max(size.width * 0.65, size.width - 380), height: Math.max(size.height * 0.7, size.height - 120) }), [size]);
   const invalidate = useThree((state) => state.invalidate);
+  useLayoutEffect(() => {
+    // The timeline occupies the bottom edge; floating panels occupy the left.
+    const shiftX = size.width > 900 ? Math.min(80, size.width * 0.06) : 0;
+    const shiftY = (Math.min(100, size.height * 0.22) - 16) / 2;
+    camera.setViewOffset(size.width, size.height, -shiftX, shiftY, size.width, size.height);
+    invalidate();
+    return () => { camera.clearViewOffset(); };
+  }, [camera, size.width, size.height, invalidate]);
   const reducedMotion = useReducedMotion();
-  const maxPolarAngle =
-    preset === "top"
-      ? Math.PI / 2
-      : cameraMode === "strategy"
-        ? Math.PI / 2 - 0.02
-        : Math.PI - 0.02;
+  const maxPolarAngle = preset === "top" ? Math.PI / 2 : Math.PI / 2 - 0.02;
   const maxDistance = cameraMode === "strategy" ? 600 : 900;
+  const worldDepth = workspaceBounds.max[2];
 
   const publishPose = useCallback(
     (
@@ -74,6 +90,7 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
       transitioning = false,
       commit = false,
     ) => {
+      if (!SCENE_DEBUG && !commit) return;
       const domElement = controls.domElement;
       if (!domElement) return;
       const host =
@@ -90,6 +107,7 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
         preset,
         mode: cameraMode,
       };
+      if (SCENE_DEBUG) {
       poseRevision.current += 1;
       host.dataset.cameraPose = JSON.stringify({
         ...pose,
@@ -100,10 +118,12 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
       host.dataset.cameraMaxPolarAngle = String(maxPolarAngle);
       host.dataset.cameraMaxDistance = String(maxDistance);
       host.dataset.cameraWorldDepth = String(worldDepth);
+      host.dataset.cameraBounds = JSON.stringify(workspaceBounds);
       host.dataset.cameraTransitioning = String(transitioning);
+      }
       if (commit) useAppStore.getState().setCameraPose(pose);
     },
-    [cameraMode, maxDistance, maxPolarAngle, preset, worldDepth],
+    [cameraMode, maxDistance, maxPolarAngle, preset, worldDepth, workspaceBounds],
   );
 
   const assignControls = useCallback((controls: CameraControlsHandle | null) => {
@@ -111,21 +131,12 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
     setControlsRevision((revision) => revision + 1);
   }, []);
 
-  const workspaceBounds = useMemo<WorldBounds>(
-    () => view === "diff" && regressionProjection
-      ? regressionProjectionBounds(regressionProjection.marks)
-      : {
-          min: [0, 0, 0],
-          max: [TIME_W, DEPTH_CAP * BOX_H + 3, worldDepth],
-        },
-    [regressionProjection, view, worldDepth],
-  );
   const selectedRegressionMark = regressionProjection?.marks.find(
     (mark) => mark.findingId === selectedFindingId,
   );
   const presetPose = useMemo(
-    () => poseForBounds(workspaceBounds, preset, size, cameraMode),
-    [cameraMode, preset, size, workspaceBounds],
+    () => poseForBounds(workspaceBounds, preset, fitSize, cameraMode),
+    [cameraMode, preset, fitSize, workspaceBounds],
   );
   const center = useMemo(
     () => new THREE.Vector3(...presetPose.target),
@@ -134,7 +145,10 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
   const flight = useCameraFlight({
     controlsRef,
     preset,
-    flightKey: `${preset}-${view}-${worldDepth}-${regressionProjection?.byteLength ?? 0}`,
+    // Only preset, view, or content bounds may fly the camera home. Viewport
+    // size and camera mode stay out: a window resize or a mode toggle must
+    // never discard the user's navigation.
+    flightKey: `${preset}-${view}-${JSON.stringify(workspaceBounds)}`,
     presetPose,
     center,
     reducedMotion,
@@ -144,18 +158,31 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
 
   const resolveCommandDestination = useCallback(
     (kind: CameraActionKind): CameraFlightDestination => {
-      const traceBounds = model
-        ? traceSelectionBounds(model, selection, hiddenLanes)
+      const traceBounds = model && view === "canyon"
+        ? traceSelectionBounds(model, selection, hiddenLanes, preset, zoomed && brush ? brush : [0, model.rangeMs])
         : null;
-      const selectedBounds = view === "diff" && selectedRegressionMark
+      let selectedBounds = view === "diff" && selectedRegressionMark
         ? regressionMarkBounds(selectedRegressionMark)
         : traceBounds;
+      if (view === "diff" && !regressionProjection && findingProjection) {
+        const mark = findingProjection.marks.find((m) => m.evidenceId === selectedEvidenceId);
+        selectedBounds = mark ? diffMarkBounds(mark, [...new Set(findingProjection.marks.map((m) => m.domain))]) : null;
+      }
+      if (view === "city" && model) {
+        const city = cityBuildings(model, hiddenLanes, brush?.[0] ?? 0, brush?.[1] ?? model.rangeMs);
+        const building = cityBuildingForName(city, selectionNameId(model, selection));
+        selectedBounds = building ? {
+          min: [CITY_X + building.rect.x, 0, building.rect.y],
+          max: [CITY_X + building.rect.x + building.rect.w, scaleHeight(building.row.self, city.maxSelf, CITY_H, scale), building.rect.y + building.rect.h],
+        } : null;
+      }
+      if (model && (view === "terrain" || view === "rhythm")) selectedBounds = aggregateSelectionBounds(model, selection, hiddenLanes, view, view === "terrain" && brush ? brush : [0, model.rangeMs]);
       const result = resolveCameraAction(kind, {
         workspace: workspaceBounds,
         selection: selectedBounds,
         preset,
         cameraMode,
-        viewport: size,
+        viewport: fitSize,
         selectedFindingId,
       });
       return {
@@ -172,9 +199,15 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
       selectedFindingId,
       selectedRegressionMark,
       selection,
-      size,
+      fitSize,
+      findingProjection,
+      regressionProjection,
+      selectedEvidenceId,
       view,
       workspaceBounds,
+      brush,
+      zoomed,
+      scale,
     ],
   );
 
@@ -206,11 +239,13 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
   return (
     <>
       {renderedOrthoMode === null ? (
-        <PerspectiveCamera makeDefault fov={50} position={presetPose.position} />
+        <PerspectiveCamera makeDefault fov={50} near={1} far={4000} position={presetPose.position} />
       ) : null}
       {renderedOrthoMode === "top" ? (
         <OrthographicCamera
           makeDefault
+          near={1}
+          far={4000}
           position={presetPose.position}
           zoom={presetPose.zoom}
           up={[0, 0, -1]}
@@ -219,6 +254,8 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
       {renderedOrthoMode === "side" ? (
         <OrthographicCamera
           makeDefault
+          near={1}
+          far={4000}
           position={presetPose.position}
           zoom={presetPose.zoom}
           up={[0, 1, 0]}
@@ -236,6 +273,9 @@ export function CameraRig({ worldDepth }: { worldDepth: number }) {
         dampingFactor={0.12}
         maxPolarAngle={maxPolarAngle}
         maxDistance={maxDistance}
+        minDistance={6}
+        minZoom={MIN_CAMERA_ZOOM}
+        maxZoom={MAX_CAMERA_ZOOM}
       />
     </>
   );

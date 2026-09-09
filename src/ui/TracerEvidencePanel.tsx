@@ -1,4 +1,6 @@
 import type { Finding, FindingId } from "../domain/analysis";
+import { useMemo } from "react";
+import { Preload } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import type {
   CpuSourceEvidenceSlice,
@@ -20,8 +22,14 @@ import { AuthoredSourceSnippet } from "./AuthoredSourceSnippet";
 import { EvidenceLevelBadge } from "./EvidenceLevelBadge";
 import { GeneratedSourceSnippet } from "./GeneratedSourceSnippet";
 import { RegressionScene } from "../scene/RegressionScene";
-import { SURFACE } from "../scene/layout";
 import { RenderActivity } from "../scene/RenderActivity";
+import { SCENE_DEBUG } from "../scene/diagnostics";
+import { LabelLayer } from "../scene/ScreenLabels";
+import { PreviewCamera } from "../scene/PreviewCamera";
+import { SceneEnvironment } from "../scene/SceneEnvironment";
+import { regressionProjectionBounds } from "../scene/regressionPicking";
+import { SceneBoundary } from "./SceneBoundary";
+import { scenePointerEvents } from "../scene/pointerEvents";
 
 export function TracerEvidencePanel({
   findings,
@@ -38,6 +46,7 @@ export function TracerEvidencePanel({
   evidenceLoading: boolean;
   onSelect: (mark: RegressionMark) => void;
 }) {
+  const bounds = useMemo(() => regressionProjectionBounds(projection.marks), [projection]);
   const summaryFinding = findings.find(
     (finding) => finding.id === selectedFindingId,
   ) ?? findings[0] ?? null;
@@ -53,25 +62,27 @@ export function TracerEvidencePanel({
       </p>
       {summaryFinding ? <FindingSummary finding={summaryFinding} /> : null}
       <div className="tracer-stage">
-        <Canvas
+        <SceneBoundary><Canvas
           id="regression-camera"
           role="img"
           aria-label={regressionGraphicLabel(projection.marks)}
-          camera={{ position: [16, 12, 18], fov: 42 }}
+          camera={{ position: [16, 12, 18], fov: 50, near: 1, far: 4000 }}
           frameloop="demand"
+          events={scenePointerEvents}
+          flat
           dpr={[1, 1.5]}
         >
-          <color attach="background" args={[SURFACE]} />
-          <ambientLight intensity={1.2} />
-          <directionalLight position={[8, 14, 10]} intensity={1.6} />
-          <RenderActivity hostId="regression-camera" />
-          <RegressionScene
+          <SceneEnvironment bounds={bounds} />
+          <PreviewCamera bounds={bounds} />
+          {SCENE_DEBUG && <RenderActivity hostId="regression-camera" />}
+          <LabelLayer><RegressionScene
             projection={projection}
             selectedFindingId={selectedFindingId}
             onSelect={onSelect}
             hostId="regression-camera"
-          />
-        </Canvas>
+          /></LabelLayer>
+          <Preload all />
+        </Canvas></SceneBoundary>
       </div>
       <div className="tracer-mark-actions">
         {projection.marks.map((mark) => (

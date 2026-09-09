@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import type { ParsedTraceModel } from "../engine/types";
-import { BOX_H, LANE_GAP } from "./layout";
+import { BOX_H } from "./layout";
 import { findingId } from "../domain/analysis";
 import {
   MAX_CAMERA_DISTANCE,
@@ -118,8 +118,8 @@ describe("traceSelectionBounds", () => {
     const model = {
       rangeMs: 100,
       lanes: [
-        { meta: { id: 4 }, starts: new Float64Array([0]), durs: new Float64Array([1]), depths: new Uint16Array([0]), nameIds: new Uint32Array([1]) },
-        { meta: { id: 9 }, starts: new Float64Array([50]), durs: new Float64Array([10]), depths: new Uint16Array([2]), nameIds: new Uint32Array([2]) },
+        { meta: { id: 4, maxDepth: 0 }, starts: new Float64Array([0]), durs: new Float64Array([1]), selfTimes: new Float64Array([1]), depths: new Uint16Array([0]), nameIds: new Uint32Array([1]) },
+        { meta: { id: 9, maxDepth: 2 }, starts: new Float64Array([50]), durs: new Float64Array([10]), selfTimes: new Float64Array([10]), depths: new Uint16Array([2]), nameIds: new Uint32Array([2]) },
       ],
     } as unknown as ParsedTraceModel;
 
@@ -130,8 +130,8 @@ describe("traceSelectionBounds", () => {
         new Set(),
       ),
     ).toEqual({
-      min: [80, 2 * BOX_H, LANE_GAP - 2.5],
-      max: [96, 3 * BOX_H, LANE_GAP + 2.5],
+      min: [80, 2.5 * BOX_H - BOX_H * 0.45, -2.25],
+      max: [96, 2.5 * BOX_H + BOX_H * 0.45, 2.25],
     });
   });
 });

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { FrameInfo } from "../engine/types";
 import { STATUS_SERIOUS } from "../engine/categories";
 import { TIME_W } from "./layout";
+import { uploadInstances } from "./instanceBuffers";
 
 const OK_COLOR = new THREE.Color("#2c3138");
 const DROPPED_COLOR = new THREE.Color(STATUS_SERIOUS);
@@ -43,9 +44,7 @@ export function FrameFloor({
       mesh.setMatrixAt(i, dummy.matrix);
       mesh.setColorAt(i, frame.dropped ? DROPPED_COLOR : OK_COLOR);
     });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
+    uploadInstances(mesh, visible.length, { min: [0, 0, z - 0.8], max: [TIME_W + 0.1, 0.12, z + 0.8] });
   }, [visible, range, t0, z]);
 
   if (visible.length === 0) return null;
@@ -53,7 +52,6 @@ export function FrameFloor({
     <instancedMesh
       ref={ref}
       args={[undefined, undefined, visible.length]}
-      frustumCulled={false}
     >
       <boxGeometry />
       <meshBasicMaterial />

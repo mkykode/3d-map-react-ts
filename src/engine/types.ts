@@ -177,6 +177,8 @@ export interface BucketedLane {
   busy: Float32Array;
   /** Dominant category id per bucket. */
   dominantCat: Uint8Array;
+  /** Bucket-major category self times. Sum equals busy for each bucket. */
+  categoryTimes: Float32Array;
 }
 
 export interface BucketGrid {
@@ -199,6 +201,8 @@ export interface RhythmGrid {
   /** seconds x cellsPerSecond, row-major; busy ms per cell */
   cells: Float32Array;
   seconds: number;
+  /** More than one second per column only when folding a long recording. */
+  secondsPerColumn: number;
   cellsPerSecond: number;
   cellMs: number;
   maxBusy: number;

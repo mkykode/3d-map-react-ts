@@ -1,5 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { openWorkspace } from "./fixtures";
+import type { SceneDebugHost } from "../../src/scene/diagnostics";
+import type { CameraControlsHandle } from "../../src/scene/cameraFlight";
 
 test.setTimeout(120_000);
 
@@ -63,7 +65,12 @@ test("trackpad, pinch, and pointer gestures preserve their camera invariants", a
 
   await page.waitForTimeout(100);
   const beforeRapidWheel = await cameraPose(stage);
-  await dispatchWheel(stage, { deltaY: -4, repeat: 2 });
+  const targetFocus = await stage.evaluate((host: SceneDebugHost) => {
+    const root = host.traceScene!();
+    const target = (root.controls as CameraControlsHandle).target.clone().project(root.camera);
+    return { focusXRatio: (target.x + 1) / 2, focusYRatio: (1 - target.y) / 2 };
+  });
+  await dispatchWheel(stage, { deltaY: -4, repeat: 2, ...targetFocus });
   const afterRapidWheel = await changedCameraPose(
     stage,
     beforeRapidWheel.revision,
@@ -254,9 +261,10 @@ async function waitForLoadedCamera(page: import("@playwright/test").Page, stage:
     .poll(
       async () => {
         const pose = await cameraPose(stage);
-        const depth = Number(await stage.getAttribute("data-camera-world-depth"));
+        const bounds = JSON.parse((await stage.getAttribute("data-camera-bounds")) ?? "null");
+        const depth = bounds?.max[2] ?? 0;
         return depth > 60
-          ? Math.abs(pose.target[2] - depth / 2)
+          ? Math.abs(pose.target[2] - (depth + bounds.min[2]) / 2)
           : Number.POSITIVE_INFINITY;
       },
       { timeout: 15_000 },

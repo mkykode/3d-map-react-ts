@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import { bucketize } from "../engine/aggregate";
 import { formatMs } from "../scene/layout";
 import { useAppStore } from "../state/store";
+import { useSceneViewport } from "../scene/viewportState";
+import { TIME_W } from "../scene/layout";
 
 const OVERVIEW_BUCKETS = 160;
 
@@ -15,6 +17,8 @@ export function BrushBar() {
   const setBrush = useAppStore((s) => s.setBrush);
   const zoomed = useAppStore((s) => s.zoomed);
   const setZoomed = useAppStore((s) => s.setZoomed);
+  const footprint = useSceneViewport((s) => s.footprint);
+  const view = useAppStore((s) => s.view);
   const stripRef = useRef<HTMLDivElement>(null);
   // The ref is the source of truth (pointer events can outrun renders);
   // the state mirror only drives the highlight while dragging.
@@ -36,6 +40,9 @@ export function BrushBar() {
   if (!model || !overview) return null;
   const t0 = brush?.[0] ?? 0;
   const t1 = brush?.[1] ?? model.rangeMs;
+  const footprintRange = (view === "canyon" || view === "terrain") && footprint.length ? [Math.min(...footprint.map((p) => p[0])) / TIME_W, Math.max(...footprint.map((p) => p[0])) / TIME_W] : null;
+  const extentStart = view === "terrain" || zoomed ? t0 : 0;
+  const extentEnd = view === "terrain" || zoomed ? t1 : model.rangeMs;
 
   const msAtClientX = (clientX: number): number => {
     const rect = stripRef.current?.getBoundingClientRect();
@@ -71,8 +78,9 @@ export function BrushBar() {
         onPointerDown={(e) => {
           try {
             e.currentTarget.setPointerCapture(e.pointerId);
-          } catch {
-            // Synthetic pointers (tests) have no capturable pointer id.
+          } catch (error) {
+            if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
+            console.warn("Pointer capture unavailable; brush ends on pointer up.");
           }
           const ms = msAtClientX(e.clientX);
           dragStartRef.current = ms;
@@ -100,6 +108,7 @@ export function BrushBar() {
         onPointerCancel={cancelDrag}
         onLostPointerCapture={cancelDrag}
       >
+        {footprintRange && <span className="overview-viewport" aria-hidden="true" style={{ left: `${(extentStart + footprintRange[0] * (extentEnd - extentStart)) / model.rangeMs * 100}%`, width: `${(footprintRange[1] - footprintRange[0]) * (extentEnd - extentStart) / model.rangeMs * 100}%` }} />}
         {Array.from(overview.busy).map((v, i) => {
           const ms = ((i + 0.5) / OVERVIEW_BUCKETS) * model.rangeMs;
           const inWindow = dragRange

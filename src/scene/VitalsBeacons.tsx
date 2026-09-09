@@ -1,70 +1,27 @@
-import { Billboard, Line, Text } from "@react-three/drei";
+import { useMemo } from "react";
 import type { VitalMarker } from "../engine/types";
-import { INK, INK_SECONDARY, xOf } from "./layout";
+import type { Vector3Tuple } from "./cameraActions";
+import { INK_SECONDARY, xOf } from "./layout";
+import { SegmentLines } from "./SegmentLines";
+import { ScreenLabel } from "./ScreenLabels";
 
-/**
- * Web-vitals markers as vertical beacons spanning every lane. Identity comes
- * from the label, not color (labels are ink; color stays with categories).
- */
-export function VitalsBeacons({
-  markers,
-  rangeMs,
-  depth,
-  height,
-}: {
-  markers: VitalMarker[];
-  rangeMs: number;
-  depth: number;
-  height: number;
-}) {
-  // Stagger labels that land within a few world units of each other.
-  const sorted = [...markers].sort((a, b) => a.ts - b.ts);
-  const levels = new Map<string, number>();
-  let prevX = -Infinity;
-  let level = 0;
-  for (const marker of sorted) {
-    const x = xOf(marker.ts, rangeMs);
-    level = x - prevX < 7 ? (level + 1) % 3 : 0;
-    levels.set(`${marker.name}-${marker.ts}`, level);
-    prevX = x;
-  }
-
-  return (
-    <group>
-      {markers.map((marker) => {
-        const x = xOf(marker.ts, rangeMs);
-        const labelY =
-          height + 1.1 + (levels.get(`${marker.name}-${marker.ts}`) ?? 0) * 1.7;
-        return (
-          <group key={`${marker.name}-${marker.ts}`}>
-            <Line
-              points={[
-                [x, 0, -2],
-                [x, height, -2],
-              ]}
-              color={INK_SECONDARY}
-              lineWidth={1.5}
-              transparent
-              opacity={0.9}
-            />
-            <mesh position={[x, height / 2, depth / 2 - 1]}>
-              <planeGeometry args={[0.06, height]} />
-              <meshBasicMaterial
-                color={INK_SECONDARY}
-                transparent
-                opacity={0.14}
-                side={2}
-                depthWrite={false}
-              />
-            </mesh>
-            <Billboard position={[x, labelY, -2]}>
-              <Text fontSize={1.25} color={INK} anchorX="center">
-                {marker.label}
-              </Text>
-            </Billboard>
-          </group>
-        );
-      })}
-    </group>
-  );
+export function VitalsBeacons({ markers, rangeMs, depth, height }: { markers: VitalMarker[]; rangeMs: number; depth: number; height: number }) {
+  const groups = useMemo(() => {
+    const result: { ts: number; labels: string[] }[] = [];
+    for (const marker of [...markers].sort((a, b) => a.ts - b.ts)) {
+      const last = result[result.length - 1];
+      if (last && Math.abs(last.ts - marker.ts) / rangeMs * 160 < 2) {
+        if (!last.labels.includes(marker.label)) last.labels.push(marker.label);
+      } else result.push({ ts: marker.ts, labels: [marker.label] });
+    }
+    return result;
+  }, [markers, rangeMs]);
+  const points = useMemo<Vector3Tuple[]>(() => groups.flatMap((m) => {
+    const x = xOf(m.ts, rangeMs);
+    return [[x, 0.15, -3], [x, height, -3], [x, 0.15, -3], [x, 0.15, depth]] as Vector3Tuple[];
+  }), [groups, rangeMs, depth, height]);
+  return <group>
+    <SegmentLines points={points} color={INK_SECONDARY} width={1} opacity={0.55} />
+    {groups.map((m) => <ScreenLabel key={m.ts} id={`vital-${m.ts}`} position={[xOf(m.ts, rangeMs), height + 1, -3]} priority={60}>{m.labels.join(" · ")}</ScreenLabel>)}
+  </group>;
 }

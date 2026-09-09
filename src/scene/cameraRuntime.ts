@@ -1,5 +1,9 @@
 import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
+import { boundedZoomFactor, constrainCamera } from "./cameraLimits";
+import { SCENE_DEBUG } from "./diagnostics";
+import { useHoverStore } from "../state/store";
 import {
   cameraInputForKeyboard,
   type CameraActionKind,
@@ -67,8 +71,9 @@ export function useCameraCommandRuntime(options: {
     if (!controls) return;
     handledCameraCommand.current = cameraCommand.id;
     const destination = resolveDestination(cameraCommand.kind);
+    useHoverStore.getState().setHover(null);
     const host = controls.domElement?.ownerDocument.getElementById("trace-camera");
-    if (host) host.dataset.cameraAction = cameraCommand.kind;
+    if (SCENE_DEBUG && host) host.dataset.cameraAction = cameraCommand.kind;
     if (reducedMotion) {
       controls.object.position.copy(destination.position);
       controls.target.copy(destination.target);
@@ -157,6 +162,7 @@ export function useCameraRuntime(options: {
     publishPose(controls, false, true);
 
     const cancelFlight = () => {
+      useHoverStore.getState().setHover(null);
       if (!land(controls)) cancel();
     };
     const applyWheel = (
@@ -166,9 +172,11 @@ export function useCameraRuntime(options: {
     ) => {
       const gestureHost =
         domElement.ownerDocument.getElementById("trace-camera") ?? domElement;
+      if (SCENE_DEBUG) {
       gestureHost.dataset.cameraLastWheelDecision = decision.gesture;
       gestureHost.dataset.cameraLastWheelDeltaX = String(decision.deltaX);
       gestureHost.dataset.cameraLastWheelDeltaY = String(decision.deltaY);
+      }
       const isLanding = isTransitioning() && preset !== "orbit";
 
       if (decision.gesture === "zoom") {
@@ -190,7 +198,7 @@ export function useCameraRuntime(options: {
               domElement.clientHeight,
               focusX,
               focusY,
-              factor,
+              boundedZoomFactor(controls, factor),
             );
             controls.update();
             publishFocusError(domElement, camera, anchor, focusX, focusY);
@@ -208,8 +216,10 @@ export function useCameraRuntime(options: {
         return;
       }
 
-      gestureHost.dataset.cameraLastPanDeltaX = String(decision.deltaX);
-      gestureHost.dataset.cameraLastPanDeltaY = String(decision.deltaY);
+      if (SCENE_DEBUG) {
+        gestureHost.dataset.cameraLastPanDeltaX = String(decision.deltaX);
+        gestureHost.dataset.cameraLastPanDeltaY = String(decision.deltaY);
+      }
       if (isLanding) {
         pendingNavigation.current.push({
           kind: "panPixels",
@@ -240,6 +250,8 @@ export function useCameraRuntime(options: {
       publishPose(controls, false, true);
     };
     const onChange = () => {
+      if (useHoverStore.getState().hover) useHoverStore.getState().setHover(null);
+      constrainCamera(controls);
       publishPose(controls, isFlying());
       invalidate();
     };
@@ -274,6 +286,26 @@ export function useCameraRuntime(options: {
   ]);
 
   const handledCameraInput = useRef(0);
+  const heldKeys = useRef(new Map<string, { command: CameraInputCommand; down: boolean; velocity: number }>());
+  useFrame((_, delta) => {
+    const controls = controlsRef.current;
+    if (!controls || heldKeys.current.size === 0) return;
+    for (const [key, held] of heldKeys.current) {
+      const dt = Math.min(delta, 0.05);
+      held.velocity = THREE.MathUtils.damp(held.velocity, held.down ? 1 : 0, 18, dt);
+      if (!held.down && held.velocity < 0.01) { heldKeys.current.delete(key); continue; }
+      const amount = dt * 8 * held.velocity;
+      const command = held.command;
+      if (command.kind === "action") continue;
+      const scaled: CameraInputCommand = command.kind === "pan" ? { ...command, multiplier: command.multiplier * amount }
+        : command.kind === "rotate" ? { ...command, angle: command.angle * amount }
+        : { ...command, factor: Math.pow(command.factor, amount) };
+      applyCameraInput({ controls, command: scaled, panPlane, preset, transitioning: isTransitioning(), hasSelection,
+        queue: (operation) => pendingNavigation.current.push(operation), land: () => { if (isFlying()) land(controls); }, cancelFlight: cancel, requestAction });
+    }
+    if (heldKeys.current.size) { publishPose(controls); invalidate(); }
+    else publishPose(controls, false, true);
+  });
   useEffect(() => {
     if (!cameraInput || cameraInput.id === handledCameraInput.current) return;
     const controls = controlsRef.current;
@@ -319,8 +351,13 @@ export function useCameraRuntime(options: {
     if (!domElement) return;
     const keyElement =
       domElement.ownerDocument.getElementById("trace-camera") ?? domElement;
-    return bindCameraKeyboard(keyElement, dispatchCameraInput);
-  }, [controlsRef, controlsRevision, dispatchCameraInput]);
+    return bindCameraKeyboard(keyElement, dispatchCameraInput, (key, command) => {
+      const previous = heldKeys.current.get(key);
+      if (command) heldKeys.current.set(key, { command, down: true, velocity: previous?.velocity ?? 0 });
+      else if (previous) previous.down = false;
+      invalidate();
+    }, () => { heldKeys.current.clear(); });
+  }, [controlsRef, controlsRevision, dispatchCameraInput, invalidate]);
 }
 
 export function applyCameraInput(options: {
@@ -405,11 +442,12 @@ export function applyCameraInput(options: {
         domElement.clientHeight,
         domElement.clientWidth / 2,
         domElement.clientHeight / 2,
-        command.factor,
+        boundedZoomFactor(controls, command.factor),
       );
     }
   }
   controls.update();
+  constrainCamera(controls);
   return "applied";
 }
 
@@ -526,6 +564,7 @@ export function bindTouchFocusAnchor(options: {
         options.publish();
       }
       controls.enableDamping = damping;
+      if (!SCENE_DEBUG) return;
       camera.updateMatrixWorld(true);
       const projected = completedAnchor.clone().project(camera);
       const expectedX = (focus.x / domElement.clientWidth) * 2 - 1;
@@ -596,7 +635,7 @@ function applyPendingNavigation(
         domElement.clientHeight,
         operation.focusX,
         operation.focusY,
-        operation.factor,
+        boundedZoomFactor(controls, operation.factor),
       );
     }
   }
@@ -609,6 +648,7 @@ function publishFocusError(
   focusX: number,
   focusY: number,
 ): void {
+  if (!SCENE_DEBUG) return;
   const projected = anchor.clone().project(camera);
   const expectedX = (focusX / domElement.clientWidth) * 2 - 1;
   const expectedY = 1 - (focusY / domElement.clientHeight) * 2;
@@ -624,6 +664,8 @@ function publishFocusError(
 function bindCameraKeyboard(
   element: HTMLElement,
   dispatchCameraInput: (command: CameraInputCommand) => void,
+  setHeld: (key: string, command: CameraInputCommand | null) => void,
+  clearHeld: () => void,
 ): () => void {
   const onKey = (event: KeyboardEvent) => {
     const command = cameraInputForKeyboard({
@@ -635,9 +677,22 @@ function bindCameraKeyboard(
       target: event.target as HTMLElement | null,
     });
     if (!command) return;
-    dispatchCameraInput(command);
     event.preventDefault();
+    if (event.repeat) return;
+    dispatchCameraInput(command);
+    if (command.kind !== "action") setHeld(event.code || event.key, command);
   };
+  const onUp = (event: KeyboardEvent) => setHeld(event.code || event.key, null);
+  const onBlur = () => clearHeld();
   element.addEventListener("keydown", onKey);
-  return () => element.removeEventListener("keydown", onKey);
+  element.ownerDocument.addEventListener("keyup", onUp);
+  element.addEventListener("blur", onBlur);
+  window.addEventListener("blur", onBlur);
+  return () => {
+    clearHeld();
+    element.removeEventListener("keydown", onKey);
+    element.ownerDocument.removeEventListener("keyup", onUp);
+    element.removeEventListener("blur", onBlur);
+    window.removeEventListener("blur", onBlur);
+  };
 }

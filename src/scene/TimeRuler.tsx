@@ -1,69 +1,24 @@
 import { useMemo } from "react";
-import { Line, Text } from "@react-three/drei";
-import {
-  formatMs,
-  GRID_LINE,
-  GROUND,
-  INK_MUTED,
-  niceTickStep,
-  TIME_W,
-  xOf,
-} from "./layout";
+import { formatMs, GRID_LINE, niceTickStep, TIME_W, xOf } from "./layout";
+import { ScreenLabel } from "./ScreenLabels";
+import { SegmentLines } from "./SegmentLines";
+import type { Vector3Tuple } from "./cameraActions";
 
-/** Ground plane, tick lines across all lanes, and time labels at the front. */
-export function TimeRuler({
-  rangeMs,
-  depth,
-  offsetMs = 0,
-}: {
-  rangeMs: number;
-  depth: number;
-  /** Absolute time of the left edge; labels show offset + tick. */
-  offsetMs?: number;
-}) {
+export function TimeRuler({ rangeMs, depth, offsetMs = 0 }: { rangeMs: number; depth: number; offsetMs?: number }) {
   const ticks = useMemo(() => {
     const step = niceTickStep(rangeMs);
     const result: number[] = [];
-    for (let t = 0; t <= rangeMs; t += step) result.push(t);
+    if (rangeMs <= 0 || !Number.isFinite(step)) return result;
+    for (let t = Math.ceil(offsetMs / step) * step; t <= offsetMs + rangeMs; t += step) result.push(t);
     return result;
-  }, [rangeMs]);
-
-  const zNear = -4;
-  const zFar = depth + 1;
-
-  return (
-    <group>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[TIME_W / 2, -0.05, (zNear + zFar) / 2]}
-      >
-        <planeGeometry args={[TIME_W + 30, zFar - zNear + 14]} />
-        <meshBasicMaterial color={GROUND} />
-      </mesh>
-      {ticks.map((t) => {
-        const x = xOf(t, rangeMs);
-        return (
-          <group key={t}>
-            <Line
-              points={[
-                [x, 0.01, zNear],
-                [x, 0.01, zFar],
-              ]}
-              color={GRID_LINE}
-              lineWidth={1}
-            />
-            <Text
-              position={[x, 0.02, zNear - 1.6]}
-              rotation={[-Math.PI / 2, 0, 0]}
-              fontSize={1.05}
-              color={INK_MUTED}
-              anchorX="center"
-            >
-              {formatMs(offsetMs + t)}
-            </Text>
-          </group>
-        );
-      })}
-    </group>
-  );
+  }, [rangeMs, offsetMs]);
+  const points = useMemo<Vector3Tuple[]>(() => ticks.flatMap((t) => {
+    const x = xOf(t - offsetMs, rangeMs);
+    return [[x, 0.12, -4], [x, 0.12, depth + 1]] as Vector3Tuple[];
+  }), [ticks, rangeMs, offsetMs, depth]);
+  return <group>
+    <SegmentLines points={points} color={GRID_LINE} />
+    {ticks.map((t) => <ScreenLabel key={t} id={`tick-${t}`} position={[xOf(t - offsetMs, rangeMs), 0.2, depth + 4]} priority={20}>{formatMs(t)}</ScreenLabel>)}
+    <ScreenLabel id="time-direction" position={[TIME_W + 2, 0.2, depth + 4]} align="left" priority={25}>time →</ScreenLabel>
+  </group>;
 }

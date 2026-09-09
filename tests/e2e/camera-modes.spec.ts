@@ -46,7 +46,8 @@ test("strategy and free camera switches preserve selected experiment evidence", 
   ).toBe("free");
   expect(
     Number(await stage.getAttribute("data-camera-max-polar-angle")),
-  ).toBeGreaterThan(strategyPolar);
+  ).toBe(strategyPolar);
+  expect(strategyPolar).toBeLessThan(Math.PI / 2);
   await expect(stage).toHaveAttribute("data-camera-max-distance", "900");
   await expect(status).toContainText("work");
   await page.getByRole("button", { name: "Strategy camera" }).click();
@@ -118,7 +119,14 @@ test("reduced motion applies final camera and scene poses immediately", async ({
   await expect(stage).toHaveAttribute("data-camera-transitioning", "false", {
     timeout: 5_000,
   });
+  // The view switch reframes the camera in a scene-root effect that lands
+  // after the click returns. The pose publish that carries the new bounds is
+  // the same publish that carries the reframed pose, so wait for the bounds.
+  const canyonBounds = await stage.getAttribute("data-camera-bounds");
   await page.getByRole("button", { name: "Terrain" }).click();
+  await expect(stage).not.toHaveAttribute("data-camera-bounds", canyonBounds ?? "", {
+    timeout: 5_000,
+  });
   await expect(stage).toHaveAttribute("data-scene-animating", "false", {
     timeout: 500,
   });

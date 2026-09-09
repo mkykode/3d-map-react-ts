@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { OrbitControls } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
 import * as THREE from "three";
 import type {
@@ -65,6 +65,7 @@ export function useCameraFlight(options: {
     invalidate,
   } = options;
   const [orthoMode, setOrthoMode] = useState<"top" | "side" | null>(null);
+  const size = useThree((s) => s.size);
   const renderedOrthoMode =
     reducedMotion && preset !== "orbit" ? preset : orthoMode;
   const destination = useRef<CameraFlightDestination | null>(null);
@@ -172,6 +173,14 @@ export function useCameraFlight(options: {
     if (next) {
       easing.damp3(camera.position, next.position, 0.32, delta);
       easing.damp3(controls.target, next.target, 0.32, delta);
+      let fovSettled = true;
+      if (camera instanceof THREE.PerspectiveCamera) {
+        // Match the destination's target-plane scale before changing projection.
+        const targetFov = preset === "orbit" ? 50 : THREE.MathUtils.radToDeg(2 * Math.atan(size.height / (next.zoom ?? 1) / (2 * next.position.distanceTo(next.target))));
+        camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 10, Math.min(delta, 0.05));
+        fovSettled = Math.abs(camera.fov - targetFov) < 0.01;
+        camera.updateProjectionMatrix();
+      }
       if (
         next.zoom !== undefined &&
         camera instanceof THREE.OrthographicCamera
@@ -181,6 +190,7 @@ export function useCameraFlight(options: {
       }
       controls.update();
       const landed =
+        fovSettled &&
         camera.position.distanceTo(next.position) < 0.4 &&
         controls.target.distanceTo(next.target) < 0.4 &&
         (next.zoom === undefined ||

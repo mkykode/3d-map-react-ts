@@ -1,6 +1,7 @@
 import type { FindingId } from "../domain/analysis";
 import type { ParsedTraceModel } from "../engine/types";
-import { BOX_H, DEPTH_CAP, laneZ, xOf } from "./layout";
+import { eventBounds, traceLayout } from "./traceLayout";
+import { clampCameraZoom } from "./cameraLimits";
 
 export const CAMERA_PRESETS = ["orbit", "top", "side"] as const;
 export const CAMERA_MODES = ["strategy", "free"] as const;
@@ -206,6 +207,8 @@ export function traceSelectionBounds(
   model: ParsedTraceModel,
   selection: TraceSelection | null,
   hiddenLanes: Set<number>,
+  preset: CameraActionPreset = "orbit",
+  window: readonly [number, number] = [0, model.rangeMs],
 ): WorldBounds | null {
   if (!selection) return null;
   const visibleLanes = model.lanes.filter(
@@ -218,23 +221,22 @@ export function traceSelectionBounds(
   let minZ = Number.POSITIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
 
-  for (const [laneIndex, lane] of visibleLanes.entries()) {
-    for (let index = 0; index < lane.starts.length; index += 1) {
+  for (const placement of traceLayout(visibleLanes, preset).placements) {
+    const lane = placement.lane;
+    if (selection.kind === "entry" && selection.lane !== lane.meta.id) continue;
+    const startIndex = selection.kind === "entry" ? selection.idx : 0;
+    const endIndex = selection.kind === "entry" ? selection.idx + 1 : lane.starts.length;
+    for (let index = startIndex; index < endIndex; index += 1) {
       const selected =
         selection.kind === "entry"
           ? lane.meta.id === selection.lane && index === selection.idx
           : lane.nameIds[index] === selection.nameId;
       if (!selected) continue;
-      const x = xOf(lane.starts[index], model.rangeMs);
-      const width = Math.max(xOf(lane.durs[index], model.rangeMs), 0.2);
-      const y = Math.min(lane.depths[index], DEPTH_CAP) * BOX_H;
-      const z = laneZ(laneIndex);
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x + width);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y + BOX_H);
-      minZ = Math.min(minZ, z - 2.5);
-      maxZ = Math.max(maxZ, z + 2.5);
+      const b = eventBounds(placement, index, window[0], window[1]);
+      if (!b) continue;
+      minX = Math.min(minX, b.min[0]); maxX = Math.max(maxX, b.max[0]);
+      minY = Math.min(minY, b.min[1]); maxY = Math.max(maxY, b.max[1]);
+      minZ = Math.min(minZ, b.min[2]); maxZ = Math.max(maxZ, b.max[2]);
     }
   }
 
@@ -286,8 +288,7 @@ export function poseForBounds(
     return {
       position: [target[0], Math.min(MAX_CAMERA_DISTANCE, target[1] + 130), target[2]],
       target,
-      zoom: Math.max(
-        0.05,
+      zoom: clampCameraZoom(
         Math.min(
           (viewportWidth * 0.82) / (width + 20),
           (viewportHeight * 0.82) / (depth + 14),
@@ -304,11 +305,10 @@ export function poseForBounds(
       position: [
         target[0],
         target[1] + 8,
-        target[2] - Math.min(MAX_CAMERA_DISTANCE, 140),
+        target[2] + Math.min(MAX_CAMERA_DISTANCE, 140),
       ],
       target,
-      zoom: Math.max(
-        0.05,
+      zoom: clampCameraZoom(
         Math.min(
           (viewportWidth * 0.82) / (width + 20),
           (viewportHeight * 0.72) / (height + 12),

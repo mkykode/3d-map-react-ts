@@ -12,6 +12,7 @@ import {
   type CameraInputCommand,
   type SerializableCameraPose,
   type TraceSelection,
+  type WorldBounds,
 } from "../scene/cameraActions";
 import type { PanPlane } from "../scene/cameraNavigation";
 import type {
@@ -38,6 +39,8 @@ export interface HoverInfo {
   idx: number;
   clientX: number;
   clientY: number;
+  summary?: { title: string; detail: string; catId: number };
+  bounds?: WorldBounds;
 }
 
 interface AppState {

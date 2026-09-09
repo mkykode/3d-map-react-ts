@@ -68,9 +68,10 @@ test("top and side actions settle before later wheel and keyboard input", async 
       const pose = JSON.parse(
         (await stage.getAttribute("data-camera-pose")) ?? "{}",
       ) as CameraPose;
-      const depth = Number(await stage.getAttribute("data-camera-world-depth"));
+      const bounds = JSON.parse((await stage.getAttribute("data-camera-bounds")) ?? "null");
+      const depth = bounds?.max[2] ?? 0;
       return depth > 60
-        ? Math.abs(pose.target[2] - depth / 2)
+        ? Math.abs(pose.target[2] - (depth + bounds.min[2]) / 2)
         : Number.POSITIVE_INFINITY;
     })
     .toBeLessThan(0.01);
