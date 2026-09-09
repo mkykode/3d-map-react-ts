@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { HoverInfo } from "./hover";
 import { engineClient } from "../engine/engineClient";
+import { STREAM_LIMITS } from "../engine/ingest/budget";
+import type { TraceWindow } from "../engine/ingest/types";
+import type { TraceImportState } from "./traceImport";
 import { DEFAULT_VISIBLE_LANES } from "../engine/constants";
 import type { SessionManifest } from "../engine/protocol";
 import type { ParsedTraceModel } from "../engine/types";
@@ -41,6 +44,11 @@ interface AppState {
   secondarySession: SessionManifest | null;
   status: string | null;
   error: string | null;
+  traceImport: TraceImportState | null;
+  lastTraceImport: TraceImportState | null;
+  confirmTraceImport: (window: TraceWindow | null) => Promise<void>;
+  cancelTraceImport: () => void;
+  reopenTraceImport: () => void;
   view: ViewId;
   preset: CameraPreset;
   cameraMode: CameraMode;
@@ -143,6 +151,21 @@ export const useAppStore = create<AppState>((set) => ({
   secondarySession: null,
   status: null,
   error: null,
+  traceImport: null,
+  lastTraceImport: null,
+  confirmTraceImport: (window) => finishFileImport(window),
+  cancelTraceImport: () => {
+    activeFileImport?.controller.abort();
+    activeFileImport = null;
+    set({ traceImport: null, status: null });
+  },
+  reopenTraceImport: () => {
+    const previous = useAppStore.getState().lastTraceImport;
+    if (!previous) return;
+    activeFileImport?.controller.abort();
+    activeFileImport = { controller: new AbortController(), generation: nextFileGeneration(previous.slot), slot: previous.slot };
+    set({ traceImport: { ...previous, phase: "choosing", error: null, progress: null }, error: null });
+  },
   view: "canyon",
   preset: "orbit",
   cameraMode: "strategy",
@@ -164,46 +187,8 @@ export const useAppStore = create<AppState>((set) => ({
   cameraInput: null,
   cameraPose: null,
 
-  loadPrimaryFile: async (file) => {
-    const generation = ++primaryGeneration;
-    set({ status: `Parsing ${file.name}…`, error: null });
-    try {
-      const previousSession = useAppStore.getState().primarySession;
-      const loaded = await engineClient.parseFile(file, "primary");
-      if (generation !== primaryGeneration) {
-        await engineClient.disposeSession(loaded.manifest.id);
-        return;
-      }
-      if (previousSession) await engineClient.disposeSession(previousSession.id);
-      set(primaryModelState(loaded.projection, loaded.manifest));
-    } catch (error) {
-      if (generation !== primaryGeneration) return;
-      set({ status: null, error: describeError(error) });
-    }
-  },
-
-  loadSecondaryFile: async (file) => {
-    const generation = ++secondaryGeneration;
-    set({ status: `Parsing comparison ${file.name}…`, error: null });
-    try {
-      const previousSession = useAppStore.getState().secondarySession;
-      const loaded = await engineClient.parseFile(file, "secondary");
-      if (generation !== secondaryGeneration) {
-        await engineClient.disposeSession(loaded.manifest.id);
-        return;
-      }
-      if (previousSession) await engineClient.disposeSession(previousSession.id);
-      set({
-        modelB: loaded.projection,
-        secondarySession: loaded.manifest,
-        status: null,
-        view: "diff",
-      });
-    } catch (error) {
-      if (generation !== secondaryGeneration) return;
-      set({ status: null, error: describeError(error) });
-    }
-  },
+  loadPrimaryFile: (file) => startFileImport(file, "primary"),
+  loadSecondaryFile: (file) => startFileImport(file, "secondary"),
 
   loadDemo: async () => {
     const generation = ++primaryGeneration;
@@ -340,6 +325,85 @@ export const useHoverStore = create<{
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+interface FileImportJob {
+  controller: AbortController;
+  generation: number;
+  slot: "primary" | "secondary";
+}
+let activeFileImport: FileImportJob | null = null;
+
+function nextFileGeneration(slot: FileImportJob["slot"]): number {
+  return slot === "primary" ? ++primaryGeneration : ++secondaryGeneration;
+}
+
+function currentFileImport(job: FileImportJob): boolean {
+  return activeFileImport === job && !job.controller.signal.aborted &&
+    job.generation === (job.slot === "primary" ? primaryGeneration : secondaryGeneration);
+}
+
+async function startFileImport(file: File, slot: FileImportJob["slot"]): Promise<void> {
+  activeFileImport?.controller.abort();
+  const job = { controller: new AbortController(), generation: nextFileGeneration(slot), slot };
+  activeFileImport = job;
+  useAppStore.setState({ status: `Reading ${file.name}…`, error: null, traceImport: { file, slot, phase: "loading", overview: null, progress: null, error: null } });
+  try {
+    const magic = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+    if (!currentFileImport(job)) return;
+    if (file.size > STREAM_LIMITS.largeFileBytes || (magic[0] === 0x1f && magic[1] === 0x8b)) {
+      updateImport(job, { phase: "scanning" });
+      const overview = await engineClient.scanFile(file, slot, {
+        signal: job.controller.signal,
+        onProgress: (progress) => updateImport(job, { progress }),
+      });
+      updateImport(job, { overview, phase: "choosing", progress: null });
+      if (currentFileImport(job)) useAppStore.setState({ status: null });
+    } else {
+      await finishFileImport(null);
+    }
+  } catch (error) {
+    if (!currentFileImport(job)) return;
+    activeFileImport = null;
+    useAppStore.setState({ status: null, traceImport: null, error: describeError(error) });
+  }
+}
+
+function updateImport(job: FileImportJob, update: Partial<TraceImportState>): void {
+  if (!currentFileImport(job)) return;
+  useAppStore.setState((state) => ({ traceImport: state.traceImport ? { ...state.traceImport, ...update } : null }));
+}
+
+async function finishFileImport(window: TraceWindow | null): Promise<void> {
+  const job = activeFileImport;
+  const pending = useAppStore.getState().traceImport;
+  if (!job || !pending || !currentFileImport(job)) return;
+  updateImport(job, { phase: "loading", error: null, progress: null, selectedWindow: window ?? undefined });
+  useAppStore.setState({ status: `Parsing ${pending.file.name}…` });
+  try {
+    const previous = job.slot === "primary" ? useAppStore.getState().primarySession : useAppStore.getState().secondarySession;
+    const loaded = await engineClient.parseFile(pending.file, job.slot, {
+      optimized: pending.overview !== null, window: window ?? undefined,
+      signal: job.controller.signal, onProgress: (progress) => updateImport(job, { progress }),
+    });
+    if (!currentFileImport(job)) { await engineClient.disposeSession(loaded.manifest.id); return; }
+    if (previous) await engineClient.disposeSession(previous.id);
+    if (!currentFileImport(job)) { await engineClient.disposeSession(loaded.manifest.id); return; }
+    const next = job.slot === "primary" ? primaryModelState(loaded.projection, loaded.manifest) : {
+      modelB: loaded.projection, secondarySession: loaded.manifest, status: null, view: "diff" as const,
+    };
+    activeFileImport = null;
+    useAppStore.setState({ ...next, traceImport: null, lastTraceImport: pending.overview ? { ...pending, selectedWindow: window ?? undefined } : null });
+  } catch (error) {
+    if (!currentFileImport(job)) return;
+    if (pending.overview) {
+      updateImport(job, { phase: "choosing", error: describeError(error), progress: null });
+      useAppStore.setState({ status: null });
+    } else {
+      activeFileImport = null;
+      useAppStore.setState({ status: null, traceImport: null, error: describeError(error) });
+    }
+  }
 }
 
 /** The active analysis window: brush if set, else the full trace. */

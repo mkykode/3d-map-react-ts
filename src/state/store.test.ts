@@ -69,6 +69,7 @@ function manifest(id: string): SessionManifest {
 }
 
 afterEach(() => {
+  useAppStore.getState().cancelTraceImport();
   vi.restoreAllMocks();
   useAppStore.setState({
     model: null,
@@ -85,8 +86,52 @@ afterEach(() => {
     cameraInput: null,
     cameraPose: null,
     cameraMode: "strategy",
+    traceImport: null,
+    lastTraceImport: null,
   });
   useHoverStore.setState({ hover: null });
+});
+
+describe("large-file import lifecycle", () => {
+  const overview = { startUs: 1000, endUs: 20_001_000, bucketStartUs: 0, bucketWidthUs: 100_000, counts: [1, 2], eventCount: 100, retainedEventCount: 90, retainedBytes: 1024, decompressedBytes: 100 * 1024 ** 2 };
+  const file = () => {
+    const input = new File(["{}"], "large.json");
+    Object.defineProperty(input, "size", { value: 100 * 1024 ** 2 });
+    return input;
+  };
+
+  it("waits for a window choice, passes it to the worker and retains it for reopening", async () => {
+    vi.spyOn(engineClient, "scanFile").mockResolvedValue(overview);
+    const parse = vi.spyOn(engineClient, "parseFile").mockResolvedValue(loaded("large"));
+    vi.spyOn(engineClient, "disposeSession").mockResolvedValue();
+    await useAppStore.getState().loadPrimaryFile(file());
+    expect(parse).not.toHaveBeenCalled();
+    expect(useAppStore.getState().traceImport?.phase).toBe("choosing");
+    const window = [1_001_000, 3_001_000] as const;
+    await useAppStore.getState().confirmTraceImport(window);
+    expect(parse).toHaveBeenCalledWith(expect.any(File), "primary", expect.objectContaining({ optimized: true, window }));
+    expect(useAppStore.getState().primarySession?.id).toBe("session:v1:large");
+    useAppStore.getState().reopenTraceImport();
+    expect(useAppStore.getState().traceImport).toMatchObject({ phase: "choosing", selectedWindow: window });
+  });
+
+  it("keeps a failed window editable and ignores a late result after cancellation", async () => {
+    vi.spyOn(engineClient, "scanFile").mockResolvedValue(overview);
+    const parse = vi.spyOn(engineClient, "parseFile").mockRejectedValue(new Error("Choose a shorter time window."));
+    const dispose = vi.spyOn(engineClient, "disposeSession").mockResolvedValue();
+    await useAppStore.getState().loadSecondaryFile(file());
+    await useAppStore.getState().confirmTraceImport([1_001_000, 3_001_000]);
+    expect(useAppStore.getState().traceImport).toMatchObject({ phase: "choosing", selectedWindow: [1_001_000, 3_001_000], error: "Choose a shorter time window." });
+    let resolve!: (value: ReturnType<typeof loaded>) => void;
+    parse.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const completion = useAppStore.getState().confirmTraceImport([1_001_000, 2_001_000]);
+    useAppStore.getState().cancelTraceImport();
+    resolve(loaded("canceled"));
+    await completion;
+    expect(dispose).toHaveBeenCalledWith("session:v1:canceled");
+    expect(useAppStore.getState().secondarySession).toBeNull();
+    expect(useAppStore.getState().traceImport).toBeNull();
+  });
 });
 
 describe("selected navigation ownership", () => {

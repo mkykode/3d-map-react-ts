@@ -4,6 +4,7 @@ import type { InstancedMesh } from "three";
 import type { SceneDebugHost } from "../../src/scene/diagnostics";
 import type { useAppStore } from "../../src/state/store";
 import { makeTraceUpload, openWorkspace } from "./fixtures";
+import { STREAM_LIMITS } from "../../src/engine/ingest/budget";
 
 test.setTimeout(120_000);
 test.use({ trace: "off" });
@@ -12,7 +13,14 @@ for (const source of ["recorded", "70-second synthetic"] as const) test(`${sourc
   page.on("pageerror", (error) => errors.push(error.message));
   await openWorkspace(page);
   await expect(page.locator(".stats")).toContainText("events", { timeout: 15_000 });
-  await page.locator('input[type="file"]').first().setInputFiles(source === "recorded" ? resolve("data/Trace-20250104T162142.json") : makeTraceUpload({ runId: "long-render-stress", eventCount: 100_000, taskSpacingUs: 700, taskDurationUs: 600 }));
+  const upload = source === "recorded" ? resolve("data/Trace-20250104T162142.json") : makeTraceUpload({ runId: "long-render-stress", eventCount: 100_000, taskSpacingUs: 700, taskDurationUs: 600 });
+  await page.locator('input[type="file"]').first().setInputFiles(upload);
+  if (typeof upload === "string" || upload.buffer.byteLength > STREAM_LIMITS.largeFileBytes) {
+    const dialog = page.getByRole("dialog", { name: "Choose what to load" });
+    await expect(dialog).toBeVisible({ timeout: 60_000 });
+    await dialog.getByRole("button", { name: "Load full recording" }).click();
+    await expect(page.locator(".trace-import-panel")).not.toBeVisible({ timeout: 60_000 });
+  }
   await expect(page.locator(".stats")).not.toContainText("15,498", { timeout: 60_000 });
   await expect(page.locator(".stats")).toContainText("events", { timeout: 60_000 });
   await expect(page.locator("#trace-camera")).toHaveAttribute("data-camera-transitioning", "false", { timeout: 15_000 });

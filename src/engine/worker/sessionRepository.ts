@@ -2,6 +2,7 @@ import type { SessionId } from "../../domain/analysis";
 import type { EvidenceAvailability } from "../../domain/evidence";
 import { unavailableEvidence } from "../../evidence/availability";
 import { ENGINE_LIMITS, hasAggregateMemoryHeadroom } from "../limits";
+import { STREAM_LIMITS } from "../ingest/budget";
 import type { ParsedTraceModel } from "../types";
 
 export type SessionState =
@@ -71,12 +72,12 @@ export class TraceSessionRepository {
 
   reserve(
     id: SessionId,
-    input: { importedBytes: number; projectedPeakBytes: number },
+    input: { importedBytes: number; projectedPeakBytes: number; streaming?: boolean },
   ): SessionSnapshot {
     if (this.sessions.has(id)) throw new Error(`Session already exists: ${id}`);
     assertByteCount(input.importedBytes, "imported bytes");
     assertByteCount(input.projectedPeakBytes, "projected peak bytes");
-    if (input.importedBytes > ENGINE_LIMITS.importedBytes) {
+    if (input.importedBytes > (input.streaming ? STREAM_LIMITS.inputBytes : ENGINE_LIMITS.importedBytes)) {
       throw new Error("Imported byte limit exceeded");
     }
     if (!hasAggregateMemoryHeadroom(this.retainedBytes, this.inFlightBytes + input.projectedPeakBytes)) {

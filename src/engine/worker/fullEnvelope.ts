@@ -1,4 +1,5 @@
 import type { SessionId } from "../../domain/analysis";
+import type { TraceWindow } from "../ingest/types";
 import {
   ENGINE_LIMITS,
   projectedInFlightPeakBytes,
@@ -42,6 +43,7 @@ export const DEFAULT_INGESTION_MEMORY_CALIBRATION: IngestionMemoryCalibration = 
 };
 
 export interface PreservedTraceEnvelope {
+  visualizationWindow?: TraceWindow;
   traceEvents: unknown[];
   metadata: Readonly<Record<string, unknown>>;
   settings: Readonly<Record<string, unknown>>;
@@ -62,9 +64,9 @@ export class StagedFullEnvelope {
     readonly payloadSha256: string,
     readonly projectedPeakBytes: number,
     envelope: PreservedTraceEnvelope,
-    imported: Uint8Array,
-    payload: Uint8Array,
-    text: string,
+    imported: Uint8Array | null,
+    payload: Uint8Array | null,
+    text: string | null,
   ) {
     this.value = envelope;
     this.imported = imported;

@@ -8,6 +8,9 @@ import type { WorkerRequest, WorkerResponse } from "./protocol";
 import { modelTransferables } from "./transfer";
 import { assertTraceSessionConservation } from "./worker/conservation";
 import { ingestFullEnvelope } from "./worker/fullEnvelope";
+import { ingestStreamingEnvelope } from "./worker/streamingEnvelope";
+import { scanTrace } from "./ingest/prepare";
+import type { TraceWindow } from "./ingest/types";
 import { buildExperimentManifest } from "./worker/experimentManifest";
 import type { ExperimentManifest } from "./experimentContract";
 import {
@@ -139,6 +142,13 @@ async function runRequest(
   request: Exclude<IncomingRequest, { type: "cancel-job" | "dispose-session" | "reserve-session" }>,
   context: JobContext,
 ): Promise<WorkerJobResult> {
+  if (request.type === "scan-trace") {
+    const overview = await scanTrace(request.file, {
+      checkCanceled: context.throwIfCanceled,
+      onProgress: (completed, total) => context.progress("scanning", completed, total),
+    });
+    return { response: { id: request.id, type: "trace-overview", overview } };
+  }
   if (
     request.type === "load-compatibility-file" ||
     request.type === "load-compatibility-url"
@@ -147,7 +157,8 @@ async function runRequest(
       request.type === "load-compatibility-file"
         ? request.file
         : await fetchTraceBlob(request.url);
-    const canonical = await ingestAndCommit(blob, request.sessionId, context);
+    const canonical = await ingestAndCommit(blob, request.sessionId, context,
+      request.type === "load-compatibility-file" && request.optimized ? { window: request.window ?? null } : undefined);
     const projection = buildCompatibilityProjection(canonical);
     return {
       response: {
@@ -300,10 +311,14 @@ async function ingestAndCommit(
   blob: Blob,
   id: ReturnType<typeof sessionId>,
   context: JobContext,
+  optimized?: { window: TraceWindow | null },
 ): Promise<CanonicalTraceSession> {
   let stage: Awaited<ReturnType<typeof ingestFullEnvelope>> | undefined;
   try {
-    stage = await ingestFullEnvelope(
+    stage = optimized ? await ingestStreamingEnvelope(blob, id, repository, optimized.window, {
+      checkCanceled: context.throwIfCanceled,
+      onProgress: (completed, total) => context.progress("ingesting", completed, total),
+    }) : await ingestFullEnvelope(
       blob,
       id,
       repository,
@@ -373,6 +388,8 @@ function publishJobEvent(event: JobEvent<WorkerJobResult>): void {
 
 function jobKind(request: IncomingRequest): JobKind {
   switch (request.type) {
+    case "scan-trace":
+      return "parse";
     case "ingest-file":
     case "ingest-url":
     case "load-compatibility-file":
@@ -403,6 +420,7 @@ function jobKind(request: IncomingRequest): JobKind {
 }
 
 function supersessionKey(request: IncomingRequest): string | undefined {
+  if (request.type === "scan-trace") return `compatibility:${request.slot}`;
   if (
     request.type === "load-compatibility-file" ||
     request.type === "load-compatibility-url"

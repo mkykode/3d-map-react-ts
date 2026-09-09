@@ -8,6 +8,7 @@ import type {
 import type { EvidenceIdentity, EvidenceSlice } from "../domain/evidence";
 import type { EvidenceSliceQuery } from "../evidence/query";
 import type { ParsedTraceModel } from "./types";
+import type { TraceOverview, TraceWindow } from "./ingest/types";
 import type {
   ExperimentManifest,
   ExperimentManifestInput,
@@ -33,6 +34,7 @@ export interface SessionManifest {
 }
 
 export type WorkerRequest =
+  | { id: number; type: "scan-trace"; file: File; slot: "primary" | "secondary" }
   | {
       id: number;
       type: "reserve-session";
@@ -49,6 +51,8 @@ export type WorkerRequest =
       sessionId: SessionId;
       slot: "primary" | "secondary";
       file: File;
+      optimized?: boolean;
+      window?: TraceWindow;
     }
   | {
       id: number;
@@ -105,6 +109,7 @@ export type WorkerRequest =
   | { id: number; type: "dispose-session"; sessionId: SessionId };
 
 export type WorkerResponse =
+  | { id: number; type: "trace-overview"; overview: TraceOverview }
   | {
       id: number;
       type: "progress";
@@ -154,6 +159,7 @@ export type WorkerResponse =
     };
 
 export const TRANSFER_RESPONSE_TYPES = [
+  "trace-overview",
   "session-manifest",
   "experiment-manifest",
   "loaded-compatibility-projection",
@@ -179,6 +185,7 @@ export function isWorkerResponse(value: unknown): value is WorkerResponse {
 }
 
 const RESPONSE_KEYS: Record<WorkerResponse["type"], readonly string[]> = {
+  "trace-overview": ["id", "type", "overview"],
   progress: ["id", "type", "jobId", "completed", "total", "stage"],
   "session-manifest": ["id", "type", "manifest"],
   "experiment-manifest": ["id", "type", "manifest"],
@@ -254,6 +261,13 @@ const PROJECTION_KEYS = [
 
 export function validateWorkerResponse(value: unknown): WorkerResponse {
   if (!isWorkerResponse(value)) throw new Error("Invalid worker response envelope");
+  if (value.type === "trace-overview") {
+    assertAllowedObjectKeys(value.overview, ["startUs", "endUs", "bucketStartUs", "bucketWidthUs", "counts", "eventCount", "retainedEventCount", "retainedBytes", "decompressedBytes"], "trace overview");
+    if (!Array.isArray(value.overview.counts) || value.overview.counts.length > 2048 ||
+      value.overview.counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+      ![value.overview.startUs, value.overview.endUs, value.overview.bucketStartUs, value.overview.bucketWidthUs, value.overview.eventCount, value.overview.retainedEventCount, value.overview.retainedBytes, value.overview.decompressedBytes].every(Number.isFinite) ||
+      value.overview.endUs <= value.overview.startUs || value.overview.bucketWidthUs <= 0) throw new Error("Invalid trace overview.");
+  }
   for (const key of Object.keys(value)) {
     if (FORBIDDEN_SESSION_FIELDS.has(key)) {
       throw new Error(`Worker response contains forbidden TraceSession field: ${key}`);

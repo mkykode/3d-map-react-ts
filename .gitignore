@@ -32,3 +32,4 @@ data/
 
 # local design references, never published
 .claude/assets/
+traces/

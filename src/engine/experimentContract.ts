@@ -11,6 +11,7 @@ export type CaptureContextField =
   | "navigationOwnership";
 
 export type ExperimentIssueCode =
+  | "reduced-trace"
   | "baseline-cardinality"
   | "candidate-cardinality"
   | "duplicate-session"

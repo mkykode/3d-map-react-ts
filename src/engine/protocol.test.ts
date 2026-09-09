@@ -5,6 +5,12 @@ import type { ParsedTraceModel } from "./types";
 import { EngineClient } from "./engineClient";
 
 describe("worker transfer protocol", () => {
+  test("accepts bounded trace overviews and rejects unbounded or invalid bins", () => {
+    const response = { id: 1, type: "trace-overview", overview: { startUs: 1, endUs: 10, bucketStartUs: 0, bucketWidthUs: 100, counts: [1], eventCount: 1, retainedEventCount: 1, retainedBytes: 100, decompressedBytes: 100 } };
+    expect(validateWorkerResponse(response)).toBe(response);
+    expect(() => validateWorkerResponse({ ...response, overview: { ...response.overview, counts: Array(2049).fill(1) } })).toThrow(/overview/);
+    expect(() => validateWorkerResponse({ ...response, overview: { ...response.overview, counts: [-1] } })).toThrow(/overview/);
+  });
   test("accepts a bounded compatibility projection and rejects attached TraceSession data", () => {
     const response: WorkerResponse = {
       id: 1,

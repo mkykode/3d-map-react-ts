@@ -30,13 +30,14 @@ export async function canonicalizeTraceSession(
   const envelope = stage.envelope;
   const { projection, canonicalEvidence } = await parseTraceForSession(
     envelope.traceEvents,
+    { window: envelope.visualizationWindow },
   );
   const sourceMaps = Object.entries(envelope.sourceMaps).map(([url, content]) => ({
     url,
     content,
   }));
   const scanIndexes = buildScanIndexes(canonicalEvidence);
-  const retainedBytes = estimateRetainedBytes(
+  const retainedBytes = encodedJsonBytes(envelope.metadata) + encodedJsonBytes(envelope.settings) + estimateRetainedBytes(
     canonicalEvidence,
     projection,
     envelope.resources,
@@ -103,7 +104,13 @@ function estimateRetainedBytes(
   resources: readonly Readonly<Record<string, unknown>>[],
   sourceMaps: readonly Readonly<Record<string, unknown>>[],
 ): number {
-  const jsonBytes = encodedJsonBytes({ evidence, resources, sourceMaps });
+  // Count bounded records without another whole-session string and byte buffer.
+  const jsonBytes = Object.values(evidence).reduce<number>((total, value) =>
+    total + (Array.isArray(value)
+      ? value.reduce((sum, entry) => sum + encodedJsonBytes(entry) + 1, 2)
+      : encodedJsonBytes(value)), 0) +
+    resources.reduce((sum, entry) => sum + encodedJsonBytes(entry) + 1, 2) +
+    sourceMaps.reduce((sum, entry) => sum + encodedJsonBytes(entry) + 1, 2);
   const projectionBuffers = projection.lanes.reduce(
     (total, lane) =>
       total +

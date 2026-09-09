@@ -74,6 +74,8 @@ export function buildExperimentManifest(
   const notReady = runData
     .filter((run) => run.snapshot.state !== "ready")
     .map((run) => run.id);
+  const reduced = runData.filter((run) => run.canonical?.metadata.traceTopographyReduction !== undefined).map((run) => run.id);
+  if (reduced.length) issues.push({ code: "reduced-trace", detail: "Reduced visualization imports cannot be used as complete experimental evidence. Import the original recordings.", sessionIds: reduced });
   if (notReady.length > 0) {
     issues.push({
       code: "session-not-ready",

@@ -15,6 +15,7 @@ import {
   type WorkerResponse,
 } from "./protocol";
 import type { ParsedTraceModel } from "./types";
+import type { TraceOverview, TraceWindow } from "./ingest/types";
 import type {
   ExperimentManifest,
   ExperimentManifestInput,
@@ -130,6 +131,7 @@ export class EngineClient {
   async parseFile(
     file: File,
     slot: "primary" | "secondary" = "primary",
+    options?: EngineRequestOptions & { optimized?: boolean; window?: TraceWindow },
   ): Promise<LoadedTrace> {
     const response = await this.request(
       {
@@ -137,13 +139,22 @@ export class EngineClient {
         sessionId: this.createSessionId(),
         slot,
         file,
+        optimized: options?.optimized,
+        window: options?.window,
       },
       "loaded-compatibility-projection",
+      options,
     );
     if (response.type !== "loaded-compatibility-projection") {
       throw new Error("Worker omitted compatibility projection");
     }
     return { manifest: response.manifest, projection: response.projection };
+  }
+
+  async scanFile(file: File, slot: "primary" | "secondary", options?: EngineRequestOptions): Promise<TraceOverview> {
+    const response = await this.request({ type: "scan-trace", file, slot }, "trace-overview", options);
+    if (response.type !== "trace-overview") throw new Error("Worker omitted trace overview.");
+    return response.overview;
   }
 
   async parseUrl(

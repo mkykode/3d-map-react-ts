@@ -98,6 +98,51 @@ body,
   background: var(--accent-soft);
 }
 
+.trace-import-panel {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sheet);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  box-shadow: var(--shadow-window);
+}
+.trace-import-panel::backdrop { background: rgba(0, 0, 0, 0.65); }
+.trace-import-header, .trace-import-actions, .trace-import-filename, .trace-reduction { display: flex; align-items: center; gap: 16px; justify-content: space-between; }
+.trace-import-header { align-items: flex-start; }
+.trace-import-header h1 { font-size: 24px; line-height: 1.2; margin: 4px 0 16px; }
+.trace-import-filename { overflow-wrap: anywhere; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+.trace-import-filename span { flex-shrink: 0; color: var(--ink-secondary); }
+.trace-import-progress { padding: 16px 0; }
+.trace-import-progress progress { width: 100%; height: 12px; accent-color: var(--accent); }
+.trace-import-progress p, .trace-import-note, .trace-import-footnote { color: var(--ink-secondary); }
+.trace-import-footnote { padding-top: 16px; margin-bottom: 0; border-top: 1px solid var(--hairline); font-size: 12px; }
+.trace-activity { display: block; width: 100%; height: 120px; margin: 24px 0 16px; color: var(--ink-muted); background: var(--bg-inset); border-radius: var(--r-control); }
+.trace-activity-selection { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 3; }
+.trace-window-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.trace-window-fields label, .trace-window-slider { display: grid; gap: 8px; color: var(--ink-secondary); }
+.trace-window-fields input { width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--hairline-strong); border-radius: var(--r-control); padding: 8px 12px; background: var(--bg-inset); color: var(--ink); font: inherit; }
+.trace-window-slider { margin-top: 16px; }
+.trace-window-slider input { width: 100%; height: 32px; accent-color: var(--accent); }
+.trace-import-actions { flex-wrap: wrap; justify-content: flex-start; margin: 24px 0 16px; }
+.trace-import-panel .btn { min-height: 36px; }
+.trace-import-panel .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.trace-import-error { padding: 12px; border-radius: var(--r-control); background: var(--danger-soft); color: var(--danger); }
+.trace-reduction { position: absolute; z-index: 12; top: 56px; left: 16px; right: 16px; margin-inline: auto; width: fit-content; max-width: min(640px, calc(100% - 32px)); padding: 8px 12px; border: 1px solid var(--hairline-strong); border-radius: var(--r-control); background: var(--bg-elevated); box-shadow: var(--shadow-sm); font-size: 12px; }
+.trace-reduction details { min-width: 0; }
+.trace-reduction summary { cursor: pointer; }
+.trace-reduction p { color: var(--ink-secondary); overflow-wrap: anywhere; }
+.trace-reduction button { flex-shrink: 0; }
+.trace-cancel { position: absolute; z-index: 15; top: 16px; left: 50%; transform: translateX(-50%); }
+@media (max-width: 500px) {
+  .trace-import-panel { padding: 16px; }
+  .trace-import-header, .trace-import-filename { flex-wrap: wrap; gap: 8px; }
+  .trace-import-header h1 { font-size: 20px; }
+  .trace-reduction { align-items: flex-start; flex-wrap: wrap; }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.22) transparent;

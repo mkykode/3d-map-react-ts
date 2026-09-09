@@ -11,6 +11,20 @@ import {
 } from "./experimentManifest";
 
 describe("worker experiment manifest", () => {
+  test("rejects reduced visualization imports as complete experimental evidence", () => {
+    const source = makeSource(3, 3);
+    const original = source.getCanonicalForWorker.bind(source);
+    source.getCanonicalForWorker = (id) => {
+      const canonical = original(id);
+      return { ...canonical, metadata: { ...canonical.metadata, traceTopographyReduction: { mode: "visualization" } } };
+    };
+    const manifest = buildExperimentManifest(source, {
+      baselineSessionIds: ids("baseline", 3), candidateSessionIds: ids("candidate", 3),
+      scenario: { kind: "marker", markerName: "checkout", occurrence: 1 }, acceptedDifferences: [],
+    });
+    expect(manifest.state).toBe("blocked");
+    expect(manifest.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "reduced-trace" })]));
+  });
   test.each([
     [3, 3],
     [4, 3],

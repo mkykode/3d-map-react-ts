@@ -35,6 +35,7 @@ import { TrackPicker } from "./ui/TrackPicker";
 import { HudPanel } from "./ui/HudPanel";
 import { WebVitalsView } from "./ui/WebVitalsView";
 import { ExperimentImport } from "./ui/ExperimentImport";
+import { TraceImport } from "./ui/TraceImport";
 import type { FindingId } from "./domain/analysis";
 import type { RegressionProjection } from "./engine/findingContract";
 
@@ -132,6 +133,7 @@ function App() {
       <Toolbar />
       <main className="stage">
         <ExperimentImport />
+        <TraceImport />
         {model && view === "vitals" ? (
           <WebVitalsView model={model} />
         ) : (

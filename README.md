@@ -62,6 +62,40 @@ A bundled demo trace loads automatically. Load your own with **Load trace**
 Puppeteer/Playwright tracing). **Compare…** loads a second trace for diff
 mode.
 
+### Large recordings
+
+Files above 32 MiB and gzip files open a local streaming overview before loading.
+Choose **Load full recording** when the retained events fit, or select a time
+interval. **Change interval** reuses the same file without another file picker.
+Both primary and comparison traces support this workflow.
+
+The worker reads bounded chunks and filters before building the DevTools model.
+It removes named V8 debugger bookkeeping and embedded source-rundown events,
+preserves CPU profile timing and node definitions, and does not thin memory
+counters. The scope notice lists reductions. Windowed views can lose network and
+asynchronous relationships crossing their boundaries, and are not complete
+page-load measurements. Controlled experiments still require original traces;
+reduced imports are rejected as experimental evidence.
+
+Current safety budgets: 8 GiB input, 16 GiB decompressed, 16 MiB per event/metadata
+value, 128 nesting levels, and at most 400,000 retained events / 80 MiB retained
+JSON. The existing 1.5 GiB aggregate memory projection still applies. These are
+safety estimates, not a guarantee for every browser or trace. Dense windows or
+large CPU node dictionaries may require a smaller recording.
+
+For local preparation outside the browser, use Node 24 or newer:
+
+```bash
+pnpm trace:prepare traces/big.json.gz --inspect
+pnpm trace:prepare traces/big.json --window 12s-24s --output traces/prepared.json
+pnpm trace:prepare traces/medium.json --output traces/prepared-full.json
+```
+
+Window times are seconds from the first retained timed event. The CLI shares the
+browser's filter and budgets, writes provenance into the output, refuses to
+overwrite any existing file, and never modifies the original. A canceled or
+failed preparation removes only its newly created, incomplete output.
+
 Controls: `Alt+1..6` (Option on macOS) switch views · `orbit/top/side`
 camera presets · `W/S` zoom, `A/D` + arrow keys pan (in top/side, left-drag
 pans as well) · drag the overview strip to select a window · `Alt+Z` zoom

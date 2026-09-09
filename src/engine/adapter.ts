@@ -207,6 +207,7 @@ export interface AdapterTraceResult {
 
 export interface AdapterParseOptions {
   onMemoryStage?: (stage: "trace-engine" | "canonicalized") => void;
+  window?: readonly [number, number];
 }
 
 interface EngineEventsSerializer {
@@ -323,9 +324,9 @@ export async function parseTraceForSession(
   );
   options?.onMemoryStage?.("trace-engine");
 
-  const boundsMinUs = data.Meta.traceBounds.min;
+  const boundsMinUs = options?.window?.[0] ?? data.Meta.traceBounds.min;
   const toMs = (us: number): number => (us - boundsMinUs) / 1000;
-  const rangeMs = data.Meta.traceBounds.range / 1000;
+  const rangeMs = options?.window ? (options.window[1] - options.window[0]) / 1000 : data.Meta.traceBounds.range / 1000;
   const navigationId = (navigation: EngineEvent): string | null => {
     const hardId = navigation.args?.data?.navigationId;
     if (hardId) return hardId;
