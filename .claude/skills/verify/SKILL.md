@@ -8,7 +8,7 @@ description: Build, launch, and drive this app in a real browser to verify chang
 ## Launch
 
 ```bash
-pnpm dev --port 5199 --strictPort   # run in background
+pnpm dev   # run in background; vite.config.ts pins port 5199 with strictPort
 chrome-devtools-axi open http://localhost:5199
 ```
 

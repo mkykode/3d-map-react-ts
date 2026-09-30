@@ -136,7 +136,7 @@ Design rules the code enforces:
 
 ```bash
 pnpm test    # Vitest: engine adapter + aggregation suites (real-trace fixture)
-pnpm build   # tsc -b && vite build
+pnpm build   # tsc -b && cf build
 pnpm lint    # eslint
 ```
 

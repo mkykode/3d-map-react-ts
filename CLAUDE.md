@@ -10,8 +10,8 @@ Trace Topography: a 3D instrument for Chrome DevTools performance traces (Vite +
 
 Package manager is pnpm. `pnpm-workspace.yaml` exists only to block esbuild postinstall scripts, not for a workspace.
 
-- `pnpm dev` - Vite dev server (demo trace auto-loads from `public/demo-trace.json`)
-- `pnpm build` - typecheck (`tsc -b`: app + node + test projects) then `vite build`
+- `pnpm dev` - `cf dev`: Vite dev server with the Cloudflare plugin (demo trace auto-loads from `public/demo-trace.json`)
+- `pnpm build` - typecheck (`tsc -b`: app + node + test projects) then `cf build` (Vite + the Cloudflare plugin)
 - `pnpm test` - Vitest; engine suites parse the real fixture (`public/demo-trace.json`) through trace_engine in Node
 - `pnpm lint` - ESLint flat config
 

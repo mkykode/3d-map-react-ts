@@ -23,6 +23,7 @@
   "include": [
     "scripts/**/*.ts",
     "vite.config.ts",
+    "cloudflare.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
   ]
