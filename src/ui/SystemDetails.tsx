@@ -5,6 +5,7 @@ import { systemLayout } from "../scene/systemLayout";
 import { formatMs } from "../scene/layout";
 import { threadDefinition } from "../evidence/definitions";
 import { useAppStore, windowOf, type Selection } from "../state/store";
+import { CATEGORIES } from "../engine/categories";
 
 export function SystemDetails({ model, selection }: { model: ParsedTraceModel; selection: Extract<Selection, { kind: "lane" | "connection" }> }) {
   const brush = useAppStore((state) => state.brush);
@@ -21,6 +22,7 @@ export function SystemDetails({ model, selection }: { model: ParsedTraceModel; s
       <p>{definition?.text ?? "No reviewed definition"}</p>
       {definition && <a href={definition.source.url} target="_blank" rel="noreferrer">{definition.source.title}</a>}
       <p>{formatMs(building?.busy ?? 0)} busy · {building?.incoming ?? 0} links in · {building?.outgoing ?? 0} links out</p>
+      {building && <p>{building.busy > 0 ? `Color: ${CATEGORIES[building.catId].label}, the largest category by busy time in this window.` : "No work in this window."}</p>}
       <ol>{building?.activities.slice(0, 3).map((row) => <li key={row.nameId}>{model.names[row.nameId]} · {formatMs(row.self)}</li>)}</ol>
       <button className="btn" onClick={() => useAppStore.getState().openInCanyon(selection)}>Open in Canyon</button>
     </>}

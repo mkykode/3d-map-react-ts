@@ -53,7 +53,7 @@ function applyHash(): void {
   const timeRaw = params.get("t");
 
   const patch: Partial<ReturnType<typeof useAppStore.getState>> = { brush: null, playhead: null, playing: false };
-  patch.view = view && VIEW_IDS.includes(view) ? view : "system";
+  patch.view = view && VIEW_IDS.includes(view) ? view : VIEW_IDS[0];
   if (preset && CAMERA_PRESETS.includes(preset)) patch.preset = preset;
   if (scale && SCALES.includes(scale)) patch.scale = scale;
   if (brushRaw) {

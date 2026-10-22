@@ -13,6 +13,8 @@ import { ConnectionPackets } from "./ConnectionPackets";
 import type { ConnectionArc } from "./connectionGeometry";
 import { ScreenLabel } from "./ScreenLabels";
 import type { WorldBounds } from "./cameraActions";
+import { CAT_ID, CATEGORIES } from "../engine/categories";
+import { DataMaterial } from "./DataMaterial";
 
 export function SystemScene({ model }: { model: ParsedTraceModel }) {
   const brush = useAppStore((state) => state.brush);
@@ -34,17 +36,17 @@ export function SystemScene({ model }: { model: ParsedTraceModel }) {
   const hoverBuilding = (building: SystemBuilding, event: ThreeEvent<PointerEvent>) => {
     const lane = model.lanes[building.lane];
     useHoverStore.getState().setHover({ source: "system", idx: building.lane, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
-      summary: { title: lane.meta.name, catId: building.activities[0]?.catId ?? 0,
-        detail: `${formatMs(building.busy)} busy · ${building.incoming} links in · ${building.outgoing} links out. Top activities: ${building.activities.slice(0, 3).map((row) => `${model.names[row.nameId]} ${formatMs(row.self)}`).join(", ") || "None in this window"}.`, definition: threadDefinition(lane.meta) } });
+      summary: { title: lane.meta.name, catId: building.catId,
+        detail: `${formatMs(building.busy)} busy · ${building.busy > 0 ? `${CATEGORIES[building.catId].label} is the largest category by busy time.` : "No work in this window."} ${building.incoming} links in · ${building.outgoing} links out. Top activities: ${building.activities.slice(0, 3).map((row) => `${model.names[row.nameId]} ${formatMs(row.self)}`).join(", ") || "None in this window"}.`, definition: threadDefinition(lane.meta) } });
   };
   return <group name="system-board">
     <SystemBoxes name="system-plates" boxes={layout.plates.map((plate) => plate.bounds)} bounds={layout.bounds} />
-    <SystemBuildings model={model} buildings={layout.buildings} bounds={layout.bounds} related={related} index={index} onHover={hoverBuilding} />
+    <SystemBuildings buildings={layout.buildings} bounds={layout.bounds} related={related} index={index} onHover={hoverBuilding} />
     <SystemBoxes name="system-requests" boxes={layout.requests.map((request) => request.bounds)} bounds={layout.bounds}
       onHover={(i, event) => {
         const request = model.requests[layout.requests[i].index];
         useHoverStore.getState().setHover({ source: "system", idx: i, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
-          summary: { title: request.url, catId: 1, detail: `${formatMs(request.start)} to ${formatMs(request.end)} · ${request.initiatorType ?? "Initiator not recorded"}` } });
+          summary: { title: request.url, catId: CAT_ID.loading, detail: `${formatMs(request.start)} to ${formatMs(request.end)} · ${request.initiatorType ?? "Initiator not recorded"}` } });
       }}
       onSelect={(i) => {
         const lane = model.lanes.find((lane) => lane.meta.kind === "network");
@@ -60,14 +62,15 @@ export function SystemScene({ model }: { model: ParsedTraceModel }) {
       }} />
     <ConnectionPackets model={model} arcs={arcs} index={index} anchors={layout.anchors} />
     {layout.plates.map((plate) => <ScreenLabel key={plate.id} id={`system-${plate.id}`} position={[plate.bounds.min[0] + 23, 1.2, plate.bounds.min[2] + 2]} priority={90} kind="district">{plate.label}</ScreenLabel>)}
-    {layout.buildings.map((building) => <ScreenLabel key={building.lane} id={`system-lane-${building.lane}`} position={[building.anchor[0], building.anchor[1] + 1.5, building.anchor[2]]} priority={50}>
-      {model.lanes[building.lane].meta.name.split(" — ")[0]} · {formatMs(building.busy)}
+    {layout.buildings.map((building) => <ScreenLabel key={building.lane} id={`system-lane-${building.lane}`} position={[building.anchor[0], building.anchor[1] + 6, building.anchor[2]]} priority={model.lanes[building.lane].meta.kind === "main" ? 70 : 50}>
+      {model.lanes[building.lane].meta.name.split(" — ")[0]}<br />
+      {building.busy > 0 ? `${CATEGORIES[building.catId].label} · ${formatMs(building.busy)} busy` : "No work in this window"}
     </ScreenLabel>)}
   </group>;
 }
 
-function SystemBuildings({ model, buildings, bounds, related, index, onHover }: {
-  model: ParsedTraceModel; buildings: SystemBuilding[]; bounds: WorldBounds; related: Set<number> | null;
+function SystemBuildings({ buildings, bounds, related, index, onHover }: {
+  buildings: SystemBuilding[]; bounds: WorldBounds; related: Set<number> | null;
   index: ReturnType<typeof playbackIndex>; onHover: (building: SystemBuilding, event: ThreeEvent<PointerEvent>) => void;
 }) {
   const mesh = useRef<InstancedMesh>(null);
@@ -76,7 +79,7 @@ function SystemBuildings({ model, buildings, bounds, related, index, onHover }: 
     if (!mesh.current) return;
     buildings.forEach((building, i) => {
       fillBox(mesh.current!, i, building.bounds);
-      mesh.current!.setColorAt(i, CAT_COLORS[building.activities[0]?.catId ?? 0]);
+      mesh.current!.setColorAt(i, CAT_COLORS[building.catId]);
     });
     uploadInstances(mesh.current, buildings.length, bounds);
   }, [buildings, bounds]);
@@ -88,10 +91,8 @@ function SystemBuildings({ model, buildings, bounds, related, index, onHover }: 
       const tasks = index.tasks.find((task) => task.lane === building.lane);
       const active = time === null || !tasks ? null : activeIntervals(tasks.index, time)[0];
       attribute.setX(i, related && !related.has(building.lane) ? -1 : active ? 1 : 0);
-      if (mesh.current) mesh.current.setColorAt(i, CAT_COLORS[active ? model.lanes[building.lane].catIds[active.idx] : building.activities[0]?.catId ?? 0]);
     });
     attribute.needsUpdate = true;
-    if (mesh.current?.instanceColor) mesh.current.instanceColor.needsUpdate = true;
   });
   return <instancedMesh ref={mesh} name="system-buildings" args={[undefined, undefined, Math.max(1, buildings.length)]} count={buildings.length}
     userData={{ lanes: buildings.map((building) => building.lane) }}
@@ -111,13 +112,14 @@ function SystemMaterial() {
       .replace("#include <opaque_fragment>", `
         vec2 edgeDistance = min(vSystemUv, 1.0 - vSystemUv) / max(fwidth(vSystemUv), vec2(0.00001));
         float edge = 1.0 - smoothstep(0.5, 1.5, min(edgeDistance.x, edgeDistance.y));
-        vec3 body = vec3(0.018, 0.021, 0.027);
+        float shade = abs(vSystemNormal.y) > 0.5 ? 1.0 : (abs(vSystemNormal.x) > 0.5 ? 0.78 : 0.64);
+        vec3 body = outgoingLight * shade;
         if (vSystemState < -0.5 && edge < 0.1) discard;
-        if (vSystemState > 0.5 && vSystemNormal.y > 0.5) body = outgoingLight;
-        outgoingLight = mix(body, vec3(vSystemState > 0.5 ? 0.92 : vSystemState < -0.5 ? 0.08 : 0.26), edge);
+        vec3 border = vSystemState > 0.5 ? vec3(0.92) : vSystemState < -0.5 ? vec3(0.08) : body * 0.45;
+        outgoingLight = mix(body, border, edge);
         #include <opaque_fragment>`);
   };
-  return <meshBasicMaterial fog={false} toneMapped={false} onBeforeCompile={compile} customProgramCacheKey={() => "system-building-v1"} />;
+  return <meshBasicMaterial fog={false} toneMapped={false} onBeforeCompile={compile} customProgramCacheKey={() => "system-building-v2"} />;
 }
 
 function SystemBoxes({ name, boxes, bounds, onHover, onSelect }: {
@@ -127,14 +129,15 @@ function SystemBoxes({ name, boxes, bounds, onHover, onSelect }: {
   const mesh = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
     if (!mesh.current) return;
-    boxes.forEach((box, i) => { fillBox(mesh.current!, i, box); mesh.current!.setColorAt(i, new Color(name === "system-plates" ? "#252a32" : "#737d89")); });
+    const color = name === "system-plates" ? new Color("#252a32") : CAT_COLORS[CAT_ID.loading];
+    boxes.forEach((box, i) => { fillBox(mesh.current!, i, box); mesh.current!.setColorAt(i, color); });
     uploadInstances(mesh.current, boxes.length, bounds);
   }, [boxes, bounds, name]);
   return <instancedMesh ref={mesh} name={name} args={[undefined, undefined, Math.max(1, boxes.length)]} count={boxes.length}
     onPointerMove={(event) => { if (onHover && event.instanceId !== undefined) { event.stopPropagation(); onHover(event.instanceId, event); } }}
     onPointerOut={() => { if (onHover) useHoverStore.getState().setHover(null); }}
     onClick={(event) => { if (onSelect && event.instanceId !== undefined && event.delta <= 4) { event.stopPropagation(); onSelect(event.instanceId); } }}>
-    <boxGeometry /><meshBasicMaterial fog={false} toneMapped={false} />
+    <boxGeometry /><DataMaterial />
   </instancedMesh>;
 }
 

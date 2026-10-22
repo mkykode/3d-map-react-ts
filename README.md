@@ -16,8 +16,8 @@ chart.
 
 | View | Question it answers | Axes |
 |---|---|---|
-| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · arcs show links |
 | **Canyon** | Where does the time go, per thread, over time? | X time · Y stack depth · Z thread lane |
+| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · color dominant work category · arcs show links |
 | **Terrain** | What is the shape of this load? | X time · Y busy per bucket · Z track |
 | **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
 | **City** | Which entities and activities cost the most? | entity districts · footprint inclusive time · height self time |
@@ -99,13 +99,14 @@ browser's filter and budgets, writes provenance into the output, refuses to
 overwrite any existing file, and never modifies the original. A canceled or
 failed preparation removes only its newly created, incomplete output.
 
-System is the default view. `Alt+1..7` (Option on macOS) opens System, Canyon,
+Canyon is the default view. `Alt+1..7` (Option on macOS) opens Canyon, System,
 Terrain, Rhythm, City, Diff, and Vitals in tab order.
 The Camera button beside the minimap contains the camera presets and navigation controls.
 `W/S` zoom. `A/D` and arrow keys pan. Drag the overview strip to select a window.
 `Alt+Z` zooms to the window. `Alt+T` opens tracks. `Alt+I` opens the inspector.
 Click an event for details. `Esc` clears the selection.
 In System, `,` and `.` step between recorded moments. Play supports 0.1×, 0.25×, and 1×.
+System keeps each thread's largest work category visible in color. White outlines mark threads active at the playhead. Blue slabs represent requests.
 View, camera preset, scale, brush, and playhead are URL-shareable.
 For example, `#view=system&t=34.24` opens the demo at 34.24 ms.
 

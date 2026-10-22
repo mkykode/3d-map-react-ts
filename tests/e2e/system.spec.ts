@@ -5,6 +5,7 @@ import type { useAppStore } from "../../src/state/store";
 import { waitForSceneIdle } from "./sceneHarness";
 import AxeBuilder from "@axe-core/playwright";
 import type { ConnectionArc } from "../../src/scene/connectionGeometry";
+import { CATEGORIES, CAT_ID } from "../../src/engine/categories";
 
 async function openSystem(page: Page, hash = "view=system") {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -50,6 +51,33 @@ test("System draws the demo board and picks a thread through to Canyon", async (
   await expect(page.getByRole("complementary", { name: "Selection details" })).toHaveCount(0);
 });
 
+test("System preserves visible category colors in overview and while scrubbing", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openSystem(page, "view=system&preset=top");
+  const colors = () => page.evaluate(() => {
+    const root = (document.getElementById("trace-camera") as SceneDebugHost).traceScene!();
+    root.gl.render(root.scene, root.camera);
+    const gl = root.gl.getContext();
+    return ["system-buildings", "system-requests"].map((name) => {
+      const mesh = root.scene.getObjectByName(name) as InstancedMesh;
+      const a = mesh.instanceMatrix.array;
+      const point = root.camera.position.clone().set(a[12] - a[0] * 0.25, a[13] + a[5] / 2, a[14] - a[10] * 0.25).applyMatrix4(mesh.matrixWorld).project(root.camera);
+      const pixel = new Uint8Array(4);
+      gl.readPixels(Math.floor((point.x + 1) / 2 * gl.drawingBufferWidth), Math.floor((point.y + 1) / 2 * gl.drawingBufferHeight), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      return `#${Array.from(pixel.slice(0, 3)).map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+    });
+  });
+  const expected = [CATEGORIES[CAT_ID.scripting].color, CATEGORIES[CAT_ID.loading].color];
+  expect(await colors()).toEqual(expected);
+  await page.getByRole("slider", { name: "Playhead", exact: true }).fill("34.24");
+  await waitForSceneIdle(page);
+  expect(await colors()).toEqual(expected);
+  await page.getByRole("slider", { name: "Playhead", exact: true }).press("End");
+  await waitForSceneIdle(page);
+  expect(await colors()).toEqual(expected);
+  await expect(page.getByRole("complementary", { name: "Legend", exact: true })).toContainText("Color: largest category by busy time");
+});
+
 test("System arc evidence keeps recorded counts and opens exact source entries", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openSystem(page);
@@ -91,16 +119,17 @@ for (const time of [null, 34.24]) test(`System has byte-identical pixels after r
   expect((await page.locator("canvas").screenshot()).equals(first)).toBe(true);
 });
 
-test("System clamps URL time, preserves explicit views, and follows the tab shortcuts", async ({ page }) => {
+test("Canyon is the default while System preserves URL time and follows the second tab shortcut", async ({ page }) => {
   await openSystem(page, "view=unknown&brush=20-50&t=9999");
+  await expect(page.getByRole("button", { name: "Canyon", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Alt+Digit2");
   await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("slider", { name: "Playhead", exact: true })).toHaveValue("50");
-  await page.keyboard.press("Alt+Digit2");
-  await expect(page.getByRole("button", { name: "Canyon", exact: true })).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Alt+Digit1");
-  await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-current", "page");
-  await openSystem(page, "view=canyon");
   await expect(page.getByRole("button", { name: "Canyon", exact: true })).toHaveAttribute("aria-current", "page");
+  await openSystem(page, "view=system&t=34.24");
+  await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("slider", { name: "Playhead", exact: true })).toHaveValue("34.24");
 });
 
 test("reduced-motion playback steps between moments and pauses without idle frames", async ({ page }) => {

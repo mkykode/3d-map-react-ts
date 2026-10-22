@@ -4,7 +4,7 @@
 
 ## Summary
 
-Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. This spec adds System, a board view modeled on pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. System becomes the first tab and the default view. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
+Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. This spec adds System, a board view modeled on pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. Canyon remains the default view, with System second. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
 
 **Where to start:** Interfaces and Contracts, which fixes the link graph and the new selection kinds. Then Story 1 and Story 2, which define the board and the playback.
 
@@ -44,20 +44,20 @@ Narration and the status line are pure functions of the trace and the playhead.
 - **Requests.** `NetworkRequestInfo` gains `initiatorType: string | null` (as recorded) and `requesterLane: number | null` (the Main lane of the requesting frame).
 - **Selection.** `TraceSelection` gains `{ kind: "lane"; lane: number }` and `{ kind: "connection"; edge: number }`. Views that cannot show a selection kind keep it and draw nothing for it.
 - **View state.** `ViewId` gains `"system"`. The store gains `playhead: number | null`, `playing: boolean`, and `playbackRate: 0.1 | 0.25 | 1`. The URL hash gains `t=<ms>` for the playhead.
-- **View order.** The tabs and `Alt+digit` keys run System 1, Canyon 2, Terrain 3, Rhythm 4, City 5, Diff 6, Vitals 7.
+- **View order.** The tabs and `Alt+digit` keys run Canyon 1, System 2, Terrain 3, Rhythm 4, City 5, Diff 6, Vitals 7.
 
 ## Scope
 
 | | |
 | --- | --- |
-| **Building** | The link graph, the System board with playback, System as the default view, links in Canyon and City, and a camera control cluster. |
+| **Building** | The link graph, the System board with playback after Canyon, links in Canyon and City, and a camera control cluster. |
 | **Not building** | Model calls for narration, because fixed templates cannot overclaim. Bloom or post-processing, because the rendering contract forbids it. Text printed on 3D faces, because labels stay fixed-pixel (D4). The pgrun look in other views, because D3 limits it to System. |
 | **Deferred** | GPU frame-pipeline links (compositor to GPU). The demo has none, so build them when a fixture shows them. |
 
 ### Path Boundaries
 
 - **Upper bound.** Stories 1 to 6 as written.
-- **Lower bound.** Stories 1 to 3, with System shipped as the default view.
+- **Lower bound.** Stories 1 to 3, with System after Canyon in the tabs.
 - **Implementer's choice.** Narration wording within the observation rule, building footprints, arc curve shape, and the Canyon cap's tie-break order.
 - **Prohibited.** Random or time-seeded render values (they break determinism). New categorical hues (they break palette safety).
 
@@ -68,7 +68,7 @@ Narration and the status line are pure functions of the trace and the playhead.
 - FR-003: Draw arcs per lane pair in the brush window. Line style shows provenance and width shows the link count.
 - FR-004: Show hover cards and selection for buildings, arcs, and link instances, each resolving to exact entries.
 - FR-005: Replay the brush window with a playhead, moving packets, narration, a status line, and moment steps.
-- FR-006: Make System the first tab and the default view.
+- FR-006: Keep Canyon the first tab and the default view. Place System second.
 - FR-007: Add a Connections toggle to Canyon.
 - FR-008: Group City by third-party entity and show caller and callee arcs.
 - FR-009: Move camera controls from the toolbar into a cluster beside the minimap.
@@ -77,7 +77,7 @@ Narration and the status line are pure functions of the trace and the playhead.
 
 - NFR-001: The same trace, view, playhead, and viewport produce a byte-identical canvas across reloads.
 - NFR-002: System draws the demo at 1440×900 in 12 draw calls or fewer, at rest and while playing. Today Canyon uses 20 and City uses 4.
-- NFR-003: The demo reaches a stable workspace on System within 3 s, as `tests/e2e/tracer-startup.spec.ts` measures today.
+- NFR-003: The demo reaches a stable default workspace within 3 s, as `tests/e2e/tracer-startup.spec.ts` measures today.
 - NFR-004: The median frame interval during playback stays within 10% of the Canyon navigation median measured in the same run.
 - NFR-005: Every new control works by keyboard, has an accessible name, and meets WCAG 2.2 AA contrast. Layouts at 375 px have no horizontal overflow.
 
@@ -166,12 +166,12 @@ Acceptance criteria carry an ID like `AC-1.2`, meaning story 1, criterion 2. Rea
 - [x] A user sees a status line with playhead time, busy threads, requests in flight, and load phase. (AC-2.7)
 - [x] A user sees at most 512 packets at once. When more links are in progress, a note states how many are not drawn. (AC-2.8)
 
-### Story 3: Land on System
+### Story 3: Land on Canyon and explore System
 
-**As a** performance engineer, **I want** System to be the first view I see, **so that** I start from the whole picture.
+**As a** performance engineer, **I want** Canyon first and System second, **so that** I can inspect timing before exploring thread relationships.
 
-- [x] A user who loads a single trace without a view in the URL lands on System, the first tab. `Alt+1` opens System and `Alt+2` opens Canyon. (AC-3.1)
-  - Fails when: the hash names another view. `#view=canyon` opens Canyon, and an unknown view opens System.
+- [x] A user who loads a single trace without a view in the URL lands on Canyon, the first tab. `Alt+1` opens Canyon and `Alt+2` opens System. (AC-3.1)
+  - Fails when: the hash names another view. `#view=system` opens System, and an unknown view opens Canyon.
 - [x] A user who imports an experiment still lands on the regression view. (AC-3.2)
 
 ### Story 4: See links in Canyon
@@ -302,11 +302,13 @@ flowchart LR
 - The worker keeps parse requests strictly serialized.
 - Data materials stay unlit, with no lights or tone mapping on the data path. Labels stay fixed-pixel DOM overlays.
 - The active state uses ink white, because the UI accent `#3987e5` equals the Loading color.
+- System buildings retain their dominant category color in overview and playback. The dominant category uses exclusive busy time in the brush window.
+- White outlines mark current activity. Blue request slabs, category labels, and the legend explain the board without relying on color alone.
 - The renderer draws on demand and animates only while playing.
 
 ## Assumptions
 
-- The key order follows the tab order, so every existing view key shifts by one. If the user wants Canyon kept on `Alt+1`, only the key map and docs change.
+- The key order follows the tab order. Canyon keeps `Alt+1`, and System uses `Alt+2`.
 - The link graph rides in the compatibility projection until T055 moves views to worker projections. If T055 lands first, System requests its aggregates from the worker and keeps instance arrays on the main thread.
 - T041 has not landed. This work creates `src/evidence/definitions.ts` in T041's planned shape, with thread role entries only.
 
@@ -326,7 +328,7 @@ flowchart LR
 | Busy time spans 1 ms to 600 ms, so linear height hides helper threads. | High | Med | Apply a minimum height and the existing log scale. |
 | A URL match ties a request to the wrong consumer. | Med | Med | Draw consumer links dashed and name the match rule in the hover card. |
 | Many requests in flight crowd the arc with packets. | Med | Low | Cap packets at 512 and state how many more are in flight. |
-| Browser tests assume Canyon on load. | High | Low | Boot those tests with `#view=canyon` in the change that switches the default. |
+| Default-view changes break saved view links. | High | Low | Verify Canyon on fresh load and preserve explicit view hashes. |
 | T055 rewrites City at the same time as Story 5. | Med | Med | Build Story 5 on T055 if it lands first. |
 
 ## Blockers
@@ -363,7 +365,8 @@ A static map loses the order of events, and moments alone lose the motion betwee
 
 ### Landing view
 
-**Decision:** System is the first tab and the default view. Experiment imports still open on the regression view, as FR-009 of the root `spec.md` requires.
+**Decision:** Canyon is the first tab and the default view. System comes second, following the user's deployment feedback.
+Experiment imports still open on the regression view, as FR-009 of the root `spec.md` requires.
 
 ### Request playback
 

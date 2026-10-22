@@ -68,7 +68,7 @@ export function NarrationPanel({ model }: { model: ParsedTraceModel }) {
   }, [playing, rate, reduced, moments, t0, t1]);
   return <section className="panel narration" aria-label="System playback">
     <header><h2>Connected system</h2><span className="system-time">{playhead === null ? "Overview" : `${playhead.toFixed(2)} ms`}</span></header>
-    <p className="system-narration">{playhead === null ? "Buildings show busy time. Arcs show links between threads. Select a building or connection to inspect its evidence." : narrate(model, current)}</p>
+    <p className="system-narration">{playhead === null ? "Each building is a thread. Taller buildings did more work in this window. Color names the largest work category. Follow an arc to inspect the link between two threads." : narrate(model, current)}</p>
     <div className="system-controls">
       <button className="btn" onClick={() => useAppStore.getState().setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
       <button className="btn" aria-keyshortcuts="," disabled={!previous} onClick={() => step(-1)}>Previous moment</button>
@@ -76,7 +76,9 @@ export function NarrationPanel({ model }: { model: ParsedTraceModel }) {
       <label>Speed<select aria-label="Playback speed" value={rate} onChange={(event) => useAppStore.getState().setPlaybackRate(Number(event.target.value) as 0.1 | 0.25 | 1)}>{[0.1, 0.25, 1].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}</select></label>
     </div>
     <label className="playhead-control">Playhead<input aria-label="Playhead" type="range" min={t0} max={t1} step="0.01" value={playhead ?? t0} onChange={(event) => { useAppStore.getState().setPlaying(false); useAppStore.getState().setPlayhead(Number(event.target.value)); }} /></label>
-    <p className="system-status" aria-label="Playback status">{current.time.toFixed(2)} ms · {current.active.length} busy threads · {current.requests.length} requests in flight · {current.phase}</p>
+    <p className="system-status" aria-label="Playback status">{playhead === null
+      ? `${index.tasks.filter(({ lane }) => !hidden.has(lane)).length} thread buildings · ${visibleRequesters.size ? model.requests.filter((request) => request.start < t1 && request.end > t0).length : 0} requests in this window`
+      : `${current.time.toFixed(2)} ms · ${current.active.length} busy threads · ${current.requests.length} requests in flight · ${current.phase}`}</p>
     {omitted > 0 && <p>{omitted} packets are not drawn (512 shown).</p>}
     <details><summary>Threads and connections</summary>
       <SystemNavigator model={model} />

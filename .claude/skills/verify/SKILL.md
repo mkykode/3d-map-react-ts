@@ -17,13 +17,14 @@ The locked dependency set reports 15,498 events across 15 of 28 threads.
 
 ## Drive
 
-- Views: Alt+1 through Alt+7 follow the tabs: System, Canyon, Terrain, Rhythm, City, Diff, Vitals. System is the default. To boot
+- Views: Alt+1 through Alt+7 follow the tabs: Canyon, System, Terrain, Rhythm, City, Diff, Vitals. Canyon is the default. To boot
   directly into a view use `http://localhost:5199/#view=terrain`, but only on
   a FRESH page load; hash-only navigation applies via the hashchange listener
   without reparsing.
 - Open Camera beside the minimap to reach every camera control. `top` on Canyon must read as a classic flame chart with
   lane labels and a time ruler.
 - System: `#view=system&t=34.24` shows 19 request activity markers. These markers do not assert initiator evidence.
+- System keeps category colors visible in overview and playback. Main on monkeykode.com is Scripting amber. Request slabs are Loading blue.
 - Canyon: Connections starts off. Enable it to inspect at most 200 links and their displayed-count note.
 - City: district plates group entities. Selecting an activity highlights its name across districts and draws dashed caller/callee arcs.
 - Check System and the expanded Camera cluster at 1440×900, 1280×720, and 375×812. Verify that controls remain reachable without horizontal overflow.

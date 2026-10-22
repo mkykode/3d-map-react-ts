@@ -43,14 +43,17 @@ The renderer is a data instrument. Game techniques help people read and navigate
 
 ## Connected System
 
-System is the default view for a single trace. Explicit view hashes remain authoritative. Experiment imports still open the regression overview.
+Canyon is the default view for a single trace. System follows Canyon in the tabs and keyboard shortcuts.
+Explicit view hashes remain authoritative. Experiment imports still open the regression overview.
 
 - The worker builds `connections` once. Typed instance columns transfer zero-copy with the compatibility projection.
 - Flows and recorded request initiators keep recorded provenance. Engine initiators and URL-matched consumers keep derived provenance.
 - Flow/initiator duplicates collapse to the recorded link. Consumers match the latest request for the same URL that started before the consumer.
 - System groups visible threads by process, with separate GPU and request plates. Building height follows busy time in the brush window.
 - Solid arcs show recorded links. Dashed arcs show derived links. Width represents the window's link count. All arcs share one instanced mesh.
-- Active buildings use ink-white outlines and category-colored top faces. System's neutral board treatment does not change the other views' data materials.
+- Buildings retain the color of their largest category by exclusive busy time in the brush window, including overview and idle states.
+- Active buildings use ink-white outlines. Colors stay stable during playback. Request slabs use Loading blue. Plates remain neutral.
+- Fixed-pixel labels name the thread, dominant category, and busy time. The legend explains every encoding.
 - The playhead drives packets, busy threads, counts, and observation-only narration. Paused playback renders on demand. Reduced motion steps between moments.
 - Request activity markers follow request lifetimes on recorded requesting-frame routes. A marker does not assert an initiator link.
 - At 34.24 ms, the demo shows 19 requests in flight, including the document without a recorded initiator. Graph intervals remain unchanged.

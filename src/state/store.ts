@@ -25,7 +25,7 @@ import type {
   RegressionProjection,
 } from "../engine/findingContract";
 
-export const VIEW_IDS = ["system", "canyon", "terrain", "rhythm", "city", "diff", "vitals"] as const;
+export const VIEW_IDS = ["canyon", "system", "terrain", "rhythm", "city", "diff", "vitals"] as const;
 export type ViewId = typeof VIEW_IDS[number];
 export type CameraPreset = CameraActionPreset;
 export type CameraMode = CameraControlMode;
@@ -175,7 +175,7 @@ export const useAppStore = create<AppState>((set) => ({
     activeFileImport = { controller: new AbortController(), generation: nextFileGeneration(previous.slot), slot: previous.slot };
     set({ traceImport: { ...previous, phase: "choosing", error: null, progress: null }, error: null });
   },
-  view: "system",
+  view: "canyon",
   preset: "orbit",
   cameraMode: "strategy",
   panPlane: "xz",

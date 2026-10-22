@@ -10,7 +10,7 @@ export function LegendPanel() {
     <aside className={`panel legend${open ? "" : " collapsed"}`} aria-label="Legend">
       <button className="legend-toggle" aria-expanded={open} aria-controls="legend-content" onClick={() => setOpen(!open)}>Legend</button>
       <div id="legend-content" hidden={!open}>
-      {view === "system" && <p className="legend-encoding">Height: busy time<br />Solid arcs: recorded links<br />Dashed arcs: derived links<br />White outline: active thread</p>}
+      {view === "system" && <p className="legend-encoding">Each building: one thread<br />Height: busy time in this window<br />Color: largest category by busy time<br />Blue slabs: network requests<br />Solid arcs: recorded links<br />Dashed arcs: derived links<br />White outline: active thread</p>}
       {view === "canyon" && <p className="legend-encoding">Width: duration · height: stack<br />Thickness: self-time share</p>}
       {view !== "rhythm" && view !== "diff" && (
         <ul className="legend-list legend-categories">

@@ -1,4 +1,5 @@
-import { bottomUp } from "../engine/aggregate";
+import { bottomUp, bucketize } from "../engine/aggregate";
+import { CAT_ID } from "../engine/categories";
 import { connectionsInWindow } from "../engine/connections";
 import type { ParsedTraceModel } from "../engine/types";
 import type { ScaleMode } from "../state/store";
@@ -8,6 +9,7 @@ import { scaleHeight } from "./layout";
 export interface SystemBuilding {
   lane: number;
   busy: number;
+  catId: number;
   activities: ReturnType<typeof bottomUp>;
   incoming: number;
   outgoing: number;
@@ -26,9 +28,11 @@ export function systemLayout(model: ParsedTraceModel, hidden: ReadonlySet<number
     group.push(lane);
     groups.set(key, group);
   }
-  const summaries = new Map(visible.map((lane) => {
+  const categories = bucketize(visible, t0, t1, 1);
+  const summaries = new Map(visible.map((lane, i) => {
     const activities = bottomUp([lane], t0, t1);
-    return [lane.meta.id, { activities, busy: activities.reduce((sum, row) => sum + row.self, 0) }];
+    const busy = activities.reduce((sum, row) => sum + row.self, 0);
+    return [lane.meta.id, { activities, busy, catId: busy > 0 ? categories.lanes[i].dominantCat[0] : CAT_ID.system }];
   }));
   const maxBusy = Math.max(1, ...visible.filter((lane) => lane.meta.kind !== "network").map((lane) => summaries.get(lane.meta.id)!.busy));
   const plates: SystemPlate[] = [];
