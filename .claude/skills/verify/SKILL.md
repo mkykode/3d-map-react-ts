@@ -17,7 +17,7 @@ The locked dependency set reports 15,498 events across 15 of 28 threads.
 
 ## Drive
 
-- Views: Alt+1 through Alt+7 follow the tabs: Canyon, System, Terrain, Rhythm, City, Diff, Vitals. Canyon is the default. To boot
+- Views: Alt+1 through Alt+7 follow the tabs: Canyon, Terrain, System, Rhythm, City, Diff, Vitals. Canyon is the default. To boot
   directly into a view use `http://localhost:5199/#view=terrain`, but only on
   a FRESH page load; hash-only navigation applies via the hashchange listener
   without reparsing.

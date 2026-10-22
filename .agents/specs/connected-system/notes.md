@@ -1,5 +1,15 @@
 # Connected System implementation notes
 
+## Tab order revision: 2026-10-22T05:18:51Z
+
+- The user requested System third after Terrain. Canyon stays first and remains the default.
+- The first three shortcuts follow the tabs: Canyon on `Alt+1`, Terrain on `Alt+2`, and System on `Alt+3`.
+- Build, lint, 236 unit tests, and both affected browser tests pass. One opt-in calibration test remains skipped.
+- Both review gates found no defects in this reorder.
+- Rapid view switching logged a Three.js shader-preparation error during verification. The same error reproduced on deployed `e172b14` before this reorder.
+- `.agents/FIXES.md` records that separate issue.
+- The earlier verification below records the previous order.
+
 ## Readability correction: 2026-10-22T05:00:39Z
 
 - The user requested Canyon as the default, with System second, after finding the gray board hard to interpret.

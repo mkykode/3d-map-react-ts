@@ -4,7 +4,7 @@
 
 ## Summary
 
-Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. This spec adds System, a board view modeled on pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. Canyon remains the default view, with System second. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
+Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. This spec adds System, a board view modeled on pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. Canyon remains the default view, with System third after Terrain. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
 
 **Where to start:** Interfaces and Contracts, which fixes the link graph and the new selection kinds. Then Story 1 and Story 2, which define the board and the playback.
 
@@ -44,20 +44,20 @@ Narration and the status line are pure functions of the trace and the playhead.
 - **Requests.** `NetworkRequestInfo` gains `initiatorType: string | null` (as recorded) and `requesterLane: number | null` (the Main lane of the requesting frame).
 - **Selection.** `TraceSelection` gains `{ kind: "lane"; lane: number }` and `{ kind: "connection"; edge: number }`. Views that cannot show a selection kind keep it and draw nothing for it.
 - **View state.** `ViewId` gains `"system"`. The store gains `playhead: number | null`, `playing: boolean`, and `playbackRate: 0.1 | 0.25 | 1`. The URL hash gains `t=<ms>` for the playhead.
-- **View order.** The tabs and `Alt+digit` keys run Canyon 1, System 2, Terrain 3, Rhythm 4, City 5, Diff 6, Vitals 7.
+- **View order.** The tabs and `Alt+digit` keys run Canyon 1, Terrain 2, System 3, Rhythm 4, City 5, Diff 6, Vitals 7.
 
 ## Scope
 
 | | |
 | --- | --- |
-| **Building** | The link graph, the System board with playback after Canyon, links in Canyon and City, and a camera control cluster. |
+| **Building** | The link graph, the System board with playback after Terrain, links in Canyon and City, and a camera control cluster. |
 | **Not building** | Model calls for narration, because fixed templates cannot overclaim. Bloom or post-processing, because the rendering contract forbids it. Text printed on 3D faces, because labels stay fixed-pixel (D4). The pgrun look in other views, because D3 limits it to System. |
 | **Deferred** | GPU frame-pipeline links (compositor to GPU). The demo has none, so build them when a fixture shows them. |
 
 ### Path Boundaries
 
 - **Upper bound.** Stories 1 to 6 as written.
-- **Lower bound.** Stories 1 to 3, with System after Canyon in the tabs.
+- **Lower bound.** Stories 1 to 3, with System after Terrain in the tabs.
 - **Implementer's choice.** Narration wording within the observation rule, building footprints, arc curve shape, and the Canyon cap's tie-break order.
 - **Prohibited.** Random or time-seeded render values (they break determinism). New categorical hues (they break palette safety).
 
@@ -68,7 +68,7 @@ Narration and the status line are pure functions of the trace and the playhead.
 - FR-003: Draw arcs per lane pair in the brush window. Line style shows provenance and width shows the link count.
 - FR-004: Show hover cards and selection for buildings, arcs, and link instances, each resolving to exact entries.
 - FR-005: Replay the brush window with a playhead, moving packets, narration, a status line, and moment steps.
-- FR-006: Keep Canyon the first tab and the default view. Place System second.
+- FR-006: Keep Canyon the first tab and the default view. Place System third after Terrain.
 - FR-007: Add a Connections toggle to Canyon.
 - FR-008: Group City by third-party entity and show caller and callee arcs.
 - FR-009: Move camera controls from the toolbar into a cluster beside the minimap.
@@ -168,9 +168,9 @@ Acceptance criteria carry an ID like `AC-1.2`, meaning story 1, criterion 2. Rea
 
 ### Story 3: Land on Canyon and explore System
 
-**As a** performance engineer, **I want** Canyon first and System second, **so that** I can inspect timing before exploring thread relationships.
+**As a** performance engineer, **I want** Canyon first, Terrain second, and System third, **so that** I can inspect timing before exploring thread relationships.
 
-- [x] A user who loads a single trace without a view in the URL lands on Canyon, the first tab. `Alt+1` opens Canyon and `Alt+2` opens System. (AC-3.1)
+- [x] A user who loads a single trace without a view in the URL lands on Canyon, the first tab. `Alt+1` opens Canyon, `Alt+2` opens Terrain, and `Alt+3` opens System. (AC-3.1)
   - Fails when: the hash names another view. `#view=system` opens System, and an unknown view opens Canyon.
 - [x] A user who imports an experiment still lands on the regression view. (AC-3.2)
 
@@ -308,7 +308,7 @@ flowchart LR
 
 ## Assumptions
 
-- The key order follows the tab order. Canyon keeps `Alt+1`, and System uses `Alt+2`.
+- The key order follows the tab order. Canyon keeps `Alt+1`, Terrain uses `Alt+2`, and System uses `Alt+3`.
 - The link graph rides in the compatibility projection until T055 moves views to worker projections. If T055 lands first, System requests its aggregates from the worker and keeps instance arrays on the main thread.
 - T041 has not landed. This work creates `src/evidence/definitions.ts` in T041's planned shape, with thread role entries only.
 
@@ -365,7 +365,7 @@ A static map loses the order of events, and moments alone lose the motion betwee
 
 ### Landing view
 
-**Decision:** Canyon is the first tab and the default view. System comes second, following the user's deployment feedback.
+**Decision:** Canyon is the first tab and the default view. System comes third after Terrain, following the user's latest deployment feedback.
 Experiment imports still open on the regression view, as FR-009 of the root `spec.md` requires.
 
 ### Request playback

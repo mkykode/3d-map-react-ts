@@ -43,7 +43,7 @@ The renderer is a data instrument. Game techniques help people read and navigate
 
 ## Connected System
 
-Canyon is the default view for a single trace. System follows Canyon in the tabs and keyboard shortcuts.
+Canyon is the default view for a single trace. System follows Terrain as the third tab and keyboard shortcut.
 Explicit view hashes remain authoritative. Experiment imports still open the regression overview.
 
 - The worker builds `connections` once. Typed instance columns transfer zero-copy with the compatibility projection.

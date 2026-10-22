@@ -13,6 +13,6 @@ test("opens the trace workspace", async ({ page }) => {
   });
   await expect(page.locator(".overlay-message.error")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Canyon", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("navigation", { name: "Views" }).getByRole("button")).toHaveText(["Canyon", "System", "Terrain", "Rhythm", "City", "Diff", "Vitals"]);
+  await expect(page.getByRole("navigation", { name: "Views" }).getByRole("button")).toHaveText(["Canyon", "Terrain", "System", "Rhythm", "City", "Diff", "Vitals"]);
   await expect(page.getByRole("region", { name: "System playback" })).toHaveCount(0);
 });

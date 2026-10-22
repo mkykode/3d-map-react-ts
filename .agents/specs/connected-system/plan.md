@@ -7,7 +7,7 @@ Execute `spec.md` in this directory. The scope includes Stories 1 through 6.
 - [x] Build and transfer the connection graph. Verify provenance, deduplication, consumer matching, demo counts, and endpoint validity.
 - [x] Build the deterministic System layout and shared batched arcs. Verify brush filtering, hidden lanes, picking, and selection details.
 - [x] Add playback, moments, narration, URL time, and reduced-motion behavior. Verify the fixed demo playhead and idle rendering.
-- [x] Keep Canyon the default and first tab, with System second. Preserve explicit view hashes and experiment routing.
+- [x] Keep Canyon the default and first tab, with Terrain second and System third. Preserve explicit view hashes and experiment routing.
 - [x] Add the bounded Canyon connection layer and entity districts with caller/callee arcs in City.
 - [x] Move camera controls beside the minimap. Verify keyboard operation and mobile layout.
 - [x] Update documentation and browser journeys. Run the final checks and review the settled diff.

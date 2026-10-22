@@ -119,10 +119,12 @@ for (const time of [null, 34.24]) test(`System has byte-identical pixels after r
   expect((await page.locator("canvas").screenshot()).equals(first)).toBe(true);
 });
 
-test("Canyon is the default while System preserves URL time and follows the second tab shortcut", async ({ page }) => {
+test("Canyon is the default while System preserves URL time and follows the third tab shortcut", async ({ page }) => {
   await openSystem(page, "view=unknown&brush=20-50&t=9999");
   await expect(page.getByRole("button", { name: "Canyon", exact: true })).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Alt+Digit2");
+  await expect(page.getByRole("button", { name: "Terrain", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Alt+Digit3");
   await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("slider", { name: "Playhead", exact: true })).toHaveValue("50");
   await page.keyboard.press("Alt+Digit1");

@@ -17,8 +17,8 @@ chart.
 | View | Question it answers | Axes |
 |---|---|---|
 | **Canyon** | Where does the time go, per thread, over time? | X time · Y stack depth · Z thread lane |
-| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · color dominant work category · arcs show links |
 | **Terrain** | What is the shape of this load? | X time · Y busy per bucket · Z track |
+| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · color dominant work category · arcs show links |
 | **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
 | **City** | Which entities and activities cost the most? | entity districts · footprint inclusive time · height self time |
 | **Diff** | What regressed between two traces? | signed Δ busy, aligned at navigation start |
@@ -99,8 +99,8 @@ browser's filter and budgets, writes provenance into the output, refuses to
 overwrite any existing file, and never modifies the original. A canceled or
 failed preparation removes only its newly created, incomplete output.
 
-Canyon is the default view. `Alt+1..7` (Option on macOS) opens Canyon, System,
-Terrain, Rhythm, City, Diff, and Vitals in tab order.
+Canyon is the default view. `Alt+1..7` (Option on macOS) opens Canyon, Terrain,
+System, Rhythm, City, Diff, and Vitals in tab order.
 The Camera button beside the minimap contains the camera presets and navigation controls.
 `W/S` zoom. `A/D` and arrow keys pan. Drag the overview strip to select a window.
 `Alt+Z` zooms to the window. `Alt+T` opens tracks. `Alt+I` opens the inspector.

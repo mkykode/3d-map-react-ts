@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Trace Topography is a 3D instrument for Chrome DevTools performance traces (Vite, React 19, TypeScript, and react-three-fiber).
 Chrome DevTools' trace engine parses each trace.
-The tabs follow this order: Canyon, System, Terrain, Rhythm, City, Diff, and Vitals.
+The tabs follow this order: Canyon, Terrain, System, Rhythm, City, Diff, and Vitals.
 `Alt+1..7` follows the same order. Canyon is the default. Experiment imports still open Diff's regression overview.
 System maps processes, threads, and connections. Canyon shows extruded flame charts. Terrain shows bucketed busy time.
 Rhythm folds activity by time offset. City groups bottom-up activity by entity. Vitals shows page-load measurements.

@@ -11,3 +11,4 @@ check exists, close the item with `lessons close <id> --by "<what fixed it>"`.
 ## Open
 
 - 2026-10-21 · trace · ESLint scans Playwright output while Playwright recreates test-results, so concurrent checks can fail with ENOENT. · ESLint ignores generated Playwright output, and concurrent lint plus test:e2e complete without directory-scan races.
+- 2026-10-21 · trace · Rapid Terrain-to-System switching rejects shader preparation with an `isReady` TypeError on deployed e172b14 before the tab reorder. · A browser regression switches views rapidly and reloads explicit view hashes without page errors or a missing workspace.

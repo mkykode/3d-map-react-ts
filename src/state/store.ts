@@ -25,7 +25,7 @@ import type {
   RegressionProjection,
 } from "../engine/findingContract";
 
-export const VIEW_IDS = ["canyon", "system", "terrain", "rhythm", "city", "diff", "vitals"] as const;
+export const VIEW_IDS = ["canyon", "terrain", "system", "rhythm", "city", "diff", "vitals"] as const;
 export type ViewId = typeof VIEW_IDS[number];
 export type CameraPreset = CameraActionPreset;
 export type CameraMode = CameraControlMode;
