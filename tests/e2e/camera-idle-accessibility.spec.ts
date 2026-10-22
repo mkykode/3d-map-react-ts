@@ -69,6 +69,7 @@ test("camera controls provide keyboard and 375px non-drag parity", async ({
   await expect.poll(() => cameraRevision(stage)).toBeGreaterThan(before);
 
   await page.getByRole("button", { name: "FunctionCall" }).click();
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
   for (const name of [
     "Pan left",
     "Pan up",

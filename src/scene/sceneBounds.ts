@@ -4,6 +4,7 @@ import type { ViewId } from "../state/store";
 import type { CameraActionPreset, WorldBounds } from "./cameraActions";
 import { CITY_H, LANE_GAP, RHYTHM_H, TIME_W } from "./layout";
 import { traceLayout } from "./traceLayout";
+import { systemLayout } from "./systemLayout";
 
 export const CITY_SIZE = 70;
 export const CITY_X = 45;
@@ -21,6 +22,7 @@ export function rhythmLayout(rangeMs: number) {
 }
 
 export function sceneBounds(model: ParsedTraceModel | null, view: ViewId, hidden: Set<number>, preset: CameraActionPreset): WorldBounds {
+  if (view === "system" && model) return systemLayout(model, hidden, 0, model.rangeMs).bounds;
   if (view === "city") return { min: [CITY_X, 0, 0], max: [CITY_X + CITY_SIZE, CITY_H + 3, CITY_SIZE] };
   if (view === "rhythm") {
     const grid = rhythmLayout(model?.rangeMs ?? MS_PER_SECOND);

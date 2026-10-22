@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { buildConnections } from "../connections";
 import {
   analysisJobId,
   sessionId,
@@ -340,6 +341,7 @@ function unionSource(analysisScope: AnalysisScope) {
       method: "GET",
       url: "https://example.test/old.js",
       renderBlocking: false,
+      initiatorType: null, requesterLane: null,
       eventKey: "raw-request-old",
     }];
     evidence.frames = [{
@@ -366,6 +368,7 @@ function unionSource(analysisScope: AnalysisScope) {
         method: "GET",
         url: "https://example.test/new.js",
         renderBlocking: false,
+        initiatorType: null, requesterLane: null,
         eventKey: "raw-request-new",
       },
       {
@@ -374,6 +377,7 @@ function unionSource(analysisScope: AnalysisScope) {
         method: null,
         url: "/relative-unmatched.js",
         renderBlocking: false,
+        initiatorType: null, requesterLane: null,
         eventKey: "raw-request-unmatched",
       },
     ];
@@ -415,6 +419,7 @@ function exactDomainSource(analysisScope: AnalysisScope) {
         method: "GET",
         url: "https://example.test/api",
         renderBlocking: false,
+        initiatorType: null, requesterLane: null,
         eventKey: "raw-request-get",
       },
       {
@@ -423,6 +428,7 @@ function exactDomainSource(analysisScope: AnalysisScope) {
         method: "POST",
         url: "https://example.test/api",
         renderBlocking: false,
+        initiatorType: null, requesterLane: null,
         eventKey: "raw-request-post",
       },
     ];
@@ -554,6 +560,7 @@ function sourceProjection(valueMs: number): ParsedTraceModel {
       exclusiveStarts: new Float64Array(),
       exclusiveEnds: new Float64Array(),
       nameIds: new Uint32Array([0, 0]),
+      entityIds: new Uint32Array(2),
       callFrameIds: new Uint32Array([1, 2]),
       eventKeyIds: new Uint32Array([1, 2]),
     }],
@@ -577,6 +584,8 @@ function sourceProjection(valueMs: number): ParsedTraceModel {
     requests: [],
     memory: [],
     flows: [],
+    entityNames: [],
+    connections: buildConnections([]),
     totalThreads: 1,
     parseMs: 0,
   };

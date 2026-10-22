@@ -11,6 +11,8 @@ export type CameraControlMode = (typeof CAMERA_MODES)[number];
 export type CameraActionKind = "fit-all" | "fit-selection" | "reset";
 export type TraceSelection =
   | { kind: "entry"; lane: number; idx: number }
+  | { kind: "lane"; lane: number }
+  | { kind: "connection"; edge: number }
   | { kind: "name"; nameId: number };
 export type CameraInputCommand =
   | {
@@ -210,7 +212,7 @@ export function traceSelectionBounds(
   preset: CameraActionPreset = "orbit",
   window: readonly [number, number] = [0, model.rangeMs],
 ): WorldBounds | null {
-  if (!selection) return null;
+  if (!selection || selection.kind === "connection") return null;
   const visibleLanes = model.lanes.filter(
     (lane) => !hiddenLanes.has(lane.meta.id),
   );
@@ -223,14 +225,14 @@ export function traceSelectionBounds(
 
   for (const placement of traceLayout(visibleLanes, preset).placements) {
     const lane = placement.lane;
-    if (selection.kind === "entry" && selection.lane !== lane.meta.id) continue;
+    if ((selection.kind === "entry" || selection.kind === "lane") && selection.lane !== lane.meta.id) continue;
     const startIndex = selection.kind === "entry" ? selection.idx : 0;
     const endIndex = selection.kind === "entry" ? selection.idx + 1 : lane.starts.length;
     for (let index = startIndex; index < endIndex; index += 1) {
       const selected =
         selection.kind === "entry"
           ? lane.meta.id === selection.lane && index === selection.idx
-          : lane.nameIds[index] === selection.nameId;
+          : selection.kind === "lane" || lane.nameIds[index] === selection.nameId;
       if (!selected) continue;
       const b = eventBounds(placement, index, window[0], window[1]);
       if (!b) continue;

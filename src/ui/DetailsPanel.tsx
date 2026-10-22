@@ -3,6 +3,7 @@ import { CATEGORIES } from "../engine/categories";
 import { bottomUp } from "../engine/aggregate";
 import { formatMs } from "../scene/layout";
 import { useAppStore, windowOf } from "../state/store";
+import { SystemDetails } from "./SystemDetails";
 
 export function DetailsPanel() {
   const model = useAppStore((s) => s.model);
@@ -13,6 +14,7 @@ export function DetailsPanel() {
 
   const content = useMemo(() => {
     if (!model || !selection) return null;
+    if (selection.kind === "lane" || selection.kind === "connection") return null;
     const navStart =
       model.markers.find((m) => m.name === "navigationStart")?.ts ?? 0;
 
@@ -67,6 +69,7 @@ export function DetailsPanel() {
     };
   }, [model, selection, brush, hiddenLanes]);
 
+  if (model && (selection?.kind === "lane" || selection?.kind === "connection")) return <SystemDetails model={model} selection={selection} />;
   if (!content) return null;
   const cat = CATEGORIES[content.catId];
 

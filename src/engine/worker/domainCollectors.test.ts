@@ -47,6 +47,7 @@ describe("chunked domain collectors", () => {
           method: "GET",
           eventKey: `request-${index}`,
           renderBlocking: false,
+          initiatorType: null, requesterLane: null,
         })),
       }),
       collect: collectNetworkValues,

@@ -1,4 +1,5 @@
 import type { ColumnarLane, ParsedTraceModel } from "../engine/types";
+import { buildConnections } from "../engine/connections";
 
 export function sceneLane(events: { start: number; dur: number; depth?: number; self?: number; cat?: number; name?: number }[], id = 0): ColumnarLane {
   return {
@@ -9,6 +10,7 @@ export function sceneLane(events: { start: number; dur: number; depth?: number; 
     selfTimes: Float64Array.from(events.map((e) => e.self ?? e.dur)),
     catIds: Uint8Array.from(events.map((e) => e.cat ?? 2)),
     nameIds: Uint32Array.from(events.map((e) => e.name ?? 0)),
+    entityIds: new Uint32Array(events.length),
     parentIndexes: new Int32Array(events.length).fill(-1),
     exclusiveOffsets: Uint32Array.from({ length: events.length + 1 }, (_, i) => i),
     exclusiveStarts: Float64Array.from(events.map((e) => e.start)),
@@ -18,5 +20,5 @@ export function sceneLane(events: { start: number; dur: number; depth?: number; 
 }
 
 export function sceneModel(lanes: ColumnarLane[], rangeMs = 1000): ParsedTraceModel {
-  return { boundsMinUs: 0, rangeMs, lanes, names: Array.from({ length: 100 }, (_, i) => `activity ${i}`), functionNames: [], scriptUrls: [], callFrames: [], eventKeys: [], processes: [], documentFrames: [], navigations: [], mainFrameId: null, mainFrameUrl: null, defaultNavigationId: null, markers: [], screenshots: [], frames: [], requests: [], memory: [], flows: [], totalThreads: lanes.length, parseMs: 0 };
+  return { boundsMinUs: 0, rangeMs, lanes, names: Array.from({ length: 100 }, (_, i) => `activity ${i}`), entityNames: [], functionNames: [], scriptUrls: [], callFrames: [], eventKeys: [], processes: [], documentFrames: [], navigations: [], mainFrameId: null, mainFrameUrl: null, defaultNavigationId: null, markers: [], screenshots: [], frames: [], requests: [], memory: [], flows: [], connections: buildConnections([]), totalThreads: lanes.length, parseMs: 0 };
 }

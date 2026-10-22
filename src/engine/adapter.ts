@@ -1,6 +1,7 @@
 import * as Trace from "@paulirish/trace_engine";
 import { classifyEvent, CAT_ID } from "./categories";
 import { MAX_LANES } from "./constants";
+import { buildConnections, consumerConnections, type ConnectionInput, type ConnectionEndpoint, type ResourceEndpoint } from "./connections";
 import type {
   CallFrameInfo,
   ColumnarLane,
@@ -44,6 +45,7 @@ interface EngineEvent {
     frame?: string;
     dataUri?: string;
     snapshot?: string;
+    beginData?: { url?: string };
     data?: {
       documentLoaderURL?: string;
       frame?: string;
@@ -55,6 +57,8 @@ interface EngineEvent {
       url?: string;
       renderBlocking?: string;
       requestMethod?: string;
+      styleSheetUrl?: string;
+      initiator?: { type: string; url?: string };
     };
   };
 }
@@ -124,6 +128,7 @@ interface EngineData {
   Renderer: {
     processes: Map<number, EngineProcess>;
     entryToNode: Map<EngineEvent, EngineTraceNode>;
+    entityMappings: { entityByEvent: Map<EngineEvent, { name: string }> };
   };
   Screenshots: {
     legacySyntheticScreenshots?: readonly EngineEvent[] | null;
@@ -142,6 +147,7 @@ interface EngineData {
   NetworkRequests: { byTime: readonly EngineEvent[] };
   Memory: { updateCountersByProcess: Map<number, readonly EngineEvent[]> };
   Flows: { flows: readonly (readonly EngineEvent[])[] };
+  Initiators: { eventToInitiator: Map<EngineEvent, EngineEvent> };
   GPU: { mainGPUThreadTasks: readonly EngineEvent[] };
   AnimationFrames: { animationFrames: readonly EngineEvent[] };
   UserInteractions: { interactionEvents: readonly EngineEvent[] };
@@ -427,6 +433,7 @@ export async function parseTraceForSession(
 
   // ---- Columnarize ----------------------------------------------------------
   const eventNames = createStringTable();
+  const entityNames = createStringTable();
   const functionNameTable = createStringTable();
   const scriptUrlTable = createStringTable();
   const eventKeyTable = createStringTable();
@@ -520,6 +527,7 @@ export async function parseTraceForSession(
     const selfTimes = new Float64Array(n);
     const parentIndexes = new Int32Array(n).fill(-1);
     const nameIds = new Uint32Array(n);
+    const entityIds = new Uint32Array(n);
     const callFrameIds = new Uint32Array(n);
     const eventKeyIds = new Uint32Array(n);
     let maxDepth = 0;
@@ -548,6 +556,8 @@ export async function parseTraceForSession(
           ? eventNames.id(requestLabel(event))
           : eventNames.id(event.name);
       if (event.callFrame) callFrameIds[i] = callFrameId(event.callFrame);
+      const entity = data.Renderer.entityMappings.entityByEvent.get(event);
+      if (entity) entityIds[i] = entityNames.id(entity.name) + 1;
       const eventKey = stableEventKey(event);
       if (eventKey) eventKeyIds[i] = eventKeyTable.id(eventKey) + 1;
       if (depth > maxDepth) maxDepth = depth;
@@ -609,6 +619,7 @@ export async function parseTraceForSession(
       exclusiveStarts: Float64Array.from(exclusiveStarts),
       exclusiveEnds: Float64Array.from(exclusiveEnds),
       nameIds,
+      entityIds,
       callFrameIds,
       eventKeyIds,
     };
@@ -783,6 +794,11 @@ export async function parseTraceForSession(
     eventKey: stableEventKey(f),
   }));
 
+  const requesterLane = (r: EngineEvent): number | null => {
+    const frame = documentFrames.find((frame) => frame.id === r.args?.data?.frame);
+    const pid = frame?.processWindows.find((window) => window.start <= toMs(r.ts) && window.end >= toMs(r.ts))?.processId;
+    return lanes.find((lane) => lane.meta.kind === "main" && lane.meta.processId === (pid ?? r.pid))?.meta.id ?? null;
+  };
   const requests = data.NetworkRequests.byTime.map((r) => ({
     start: toMs(r.ts),
     end: toMs(r.ts + (r.dur ?? 0)),
@@ -790,6 +806,8 @@ export async function parseTraceForSession(
     method: r.args?.data?.requestMethod ?? null,
     eventKey: stableEventKey(r),
     renderBlocking: isRenderBlocking(r.args?.data?.renderBlocking),
+    initiatorType: r.args?.data?.initiator?.type ?? null,
+    requesterLane: requesterLane(r),
   }));
 
   // One process only: mixing heaps from iframes would draw a false river.
@@ -823,11 +841,42 @@ export async function parseTraceForSession(
     }))
     .filter((f) => f.points.length >= 2);
 
+  const endpoint = (event: EngineEvent): ConnectionEndpoint => {
+    const location = entryLocation.get(event);
+    return { lane: location?.lane ?? null, idx: location?.idx ?? -1, start: toMs(event.ts) };
+  };
+  const links: ConnectionInput[] = [];
+  for (const flow of data.Flows.flows) {
+    for (let i = 1; i < flow.length; i++) links.push({ from: endpoint(flow[i - 1]), to: endpoint(flow[i]), kind: "flow", provenance: "recorded" });
+  }
+  for (const [target, source] of data.Initiators.eventToInitiator) {
+    links.push({ from: endpoint(source), to: endpoint(target), kind: "initiator", provenance: "derived" });
+  }
+  data.NetworkRequests.byTime.forEach((request, index) => {
+    if (!requests[index].initiatorType) return;
+    const source = request.rawSourceEvent && entryLocation.get(request.rawSourceEvent);
+    links.push({
+      from: { lane: requests[index].requesterLane, idx: source?.lane === requests[index].requesterLane ? source.idx : -1, start: toMs(request.rawSourceEvent?.ts ?? request.ts) },
+      to: endpoint(request), kind: "request", provenance: "recorded",
+    });
+  });
+  const consumers: ResourceEndpoint[] = [];
+  for (const [event] of entryLocation) {
+    if (!["ParseHTML", "EvaluateScript", "ParseAuthorStyleSheet"].includes(event.name)) continue;
+    const url = event.args?.beginData?.url ?? event.args?.data?.url ?? event.args?.data?.styleSheetUrl;
+    if (url) consumers.push({ ...endpoint(event), url });
+  }
+  for (const link of consumerConnections(data.NetworkRequests.byTime.map((request) => ({ ...endpoint(request), url: request.args?.data?.url ?? "" })), consumers)) {
+    links.push(link);
+  }
+  const connections = buildConnections(links);
+
   const projection: ParsedTraceModel = {
     boundsMinUs,
     rangeMs,
     lanes,
     names: eventNames.values,
+    entityNames: entityNames.values,
     functionNames: functionNameTable.values,
     scriptUrls: scriptUrlTable.values,
     callFrames,
@@ -844,6 +893,7 @@ export async function parseTraceForSession(
     requests,
     memory,
     flows,
+    connections,
     totalThreads,
     parseMs: Math.round(performance.now() - started),
   };

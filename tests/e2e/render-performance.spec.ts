@@ -5,9 +5,37 @@ import type { SceneDebugHost } from "../../src/scene/diagnostics";
 import type { useAppStore } from "../../src/state/store";
 import { makeTraceUpload, openWorkspace } from "./fixtures";
 import { STREAM_LIMITS } from "../../src/engine/ingest/budget";
+import { waitForSceneIdle } from "./sceneHarness";
 
 test.setTimeout(120_000);
 test.use({ trace: "off" });
+test("System playback stays within the Canyon frame budget in the same run", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWorkspace(page);
+  await expect(page.locator(".stats")).toContainText("events");
+  await waitForSceneIdle(page);
+  await page.locator("#trace-camera").focus();
+  await page.keyboard.down("q");
+  const sample = () => page.evaluate(() => new Promise<number[]>((resolve) => {
+    const intervals: number[] = []; let previous = 0;
+    const tick = (time: number) => { if (previous) intervals.push(time - previous); previous = time; if (intervals.length < 60) requestAnimationFrame(tick); else resolve(intervals.sort((a, b) => a - b)); };
+    requestAnimationFrame(tick);
+  }));
+  const canyon = await sample();
+  await page.keyboard.up("q");
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await waitForSceneIdle(page);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const system = await sample();
+  const calls = await page.evaluate(() => (document.getElementById("trace-camera") as SceneDebugHost).traceScene!().gl.info.render.calls);
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await waitForSceneIdle(page);
+  const metrics = { canyonMedianMs: canyon[30], systemMedianMs: system[30], calls };
+  console.log("System playback metrics", JSON.stringify(metrics));
+  await test.info().attach("system-playback-metrics", { body: JSON.stringify(metrics), contentType: "application/json" });
+  expect(system[30]).toBeLessThanOrEqual(canyon[30] * 1.1);
+  expect(calls).toBeLessThanOrEqual(12);
+});
 for (const source of ["recorded", "70-second synthetic"] as const) test(`${source} trace uses LOD and records sustained navigation cost`, async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

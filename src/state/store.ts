@@ -25,13 +25,8 @@ import type {
   RegressionProjection,
 } from "../engine/findingContract";
 
-export type ViewId =
-  | "canyon"
-  | "terrain"
-  | "rhythm"
-  | "city"
-  | "diff"
-  | "vitals";
+export const VIEW_IDS = ["system", "canyon", "terrain", "rhythm", "city", "diff", "vitals"] as const;
+export type ViewId = typeof VIEW_IDS[number];
 export type CameraPreset = CameraActionPreset;
 export type CameraMode = CameraControlMode;
 export type ScaleMode = "linear" | "log";
@@ -57,6 +52,10 @@ interface AppState {
   scale: ScaleMode;
   /** Time window [t0, t1] in ms, or null for the full trace. */
   brush: [number, number] | null;
+  playhead: number | null;
+  playing: boolean;
+  playbackRate: 0.1 | 0.25 | 1;
+  connectionsVisible: boolean;
   selectedNavigationId: string | null;
   selection: Selection | null;
   /** Lane ids hidden by the track picker. */
@@ -83,8 +82,13 @@ interface AppState {
   setPanPlane: (panPlane: PanPlane) => void;
   setScale: (scale: ScaleMode) => void;
   setBrush: (brush: [number, number] | null) => void;
+  setPlayhead: (playhead: number | null) => void;
+  setPlaying: (playing: boolean) => void;
+  setPlaybackRate: (rate: 0.1 | 0.25 | 1) => void;
+  toggleConnections: () => void;
   setSelectedNavigationId: (navigationId: string | null) => void;
   setSelection: (selection: Selection | null) => void;
+  openInCanyon: (selection: Selection) => void;
   toggleLane: (laneId: number) => void;
   setHiddenLanes: (hidden: Set<number>) => void;
   setZoomed: (zoomed: boolean) => void;
@@ -128,11 +132,15 @@ function primaryModelState(
   primarySession: SessionManifest,
 ) {
   useHoverStore.getState().setHover(null);
+  const state = useAppStore.getState();
+  const brush = state.model ? null : state.brush;
   return {
     model,
     primarySession,
     status: null,
-    brush: null,
+    brush,
+    playhead: state.model ? null : clampPlayhead(state.playhead, model, brush),
+    playing: false,
     selectedNavigationId: model.defaultNavigationId,
     selection: null,
     zoomed: false,
@@ -167,12 +175,16 @@ export const useAppStore = create<AppState>((set) => ({
     activeFileImport = { controller: new AbortController(), generation: nextFileGeneration(previous.slot), slot: previous.slot };
     set({ traceImport: { ...previous, phase: "choosing", error: null, progress: null }, error: null });
   },
-  view: "canyon",
+  view: "system",
   preset: "orbit",
   cameraMode: "strategy",
   panPlane: "xz",
   scale: "linear",
   brush: null,
+  playhead: null,
+  playing: false,
+  playbackRate: 0.1,
+  connectionsVisible: false,
   selectedNavigationId: null,
   selection: null,
   hiddenLanes: new Set<number>(),
@@ -212,13 +224,21 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  setView: (view) => set({ view }),
+  setView: (view) => set((state) => ({ view, playing: view === "system" && state.playing })),
   setPreset: (preset) => set({ preset }),
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setPanPlane: (panPlane) => set({ panPlane }),
   setScale: (scale) => set({ scale }),
   setBrush: (brush) =>
-    set((state) => ({ brush, zoomed: brush === null ? false : state.zoomed })),
+    set((state) => ({ brush, playhead: clampPlayhead(state.playhead, state.model, brush), playing: false, zoomed: brush === null ? false : state.zoomed })),
+  setPlayhead: (playhead) => set((state) => Number.isFinite(playhead) || playhead === null ? { playhead: clampPlayhead(playhead, state.model, state.brush) } : {}),
+  setPlaying: (playing) => set((state) => {
+    if (!playing || !state.model) return { playing: false };
+    const [start, end] = windowOf(state.model, state.brush);
+    return { playing: true, playhead: state.playhead === null || state.playhead >= end ? start : state.playhead };
+  }),
+  setPlaybackRate: (playbackRate) => set({ playbackRate }),
+  toggleConnections: () => set((state) => ({ connectionsVisible: !state.connectionsVisible })),
   setSelectedNavigationId: (navigationId) =>
     set((state) => {
       if (
@@ -232,6 +252,11 @@ export const useAppStore = create<AppState>((set) => ({
       return { selectedNavigationId: navigationId };
     }),
   setSelection: (selection) => set({ selection }),
+  openInCanyon: (selection) => set((state) => {
+    const hiddenLanes = new Set(state.hiddenLanes);
+    if (selection.kind === "lane" || selection.kind === "entry") hiddenLanes.delete(selection.lane);
+    return { selection, hiddenLanes, view: "canyon", playing: false, zoomed: false, cameraCommand: { id: state.cameraCommand.id + 1, kind: "fit-selection" } };
+  }),
   toggleLane: (laneId) =>
     set((state) => {
       const hidden = new Set(state.hiddenLanes);
@@ -425,4 +450,10 @@ export function windowOf(
   brush: [number, number] | null,
 ): [number, number] {
   return brush ?? [0, model.rangeMs];
+}
+
+export function clampPlayhead(time: number | null, model: ParsedTraceModel | null, brush: [number, number] | null): number | null {
+  if (time === null || !model) return time;
+  const [start, end] = windowOf(model, brush);
+  return Math.max(start, Math.min(end, time));
 }

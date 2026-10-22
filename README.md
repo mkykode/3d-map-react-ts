@@ -16,18 +16,20 @@ chart.
 
 | View | Question it answers | Axes |
 |---|---|---|
+| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · arcs show links |
 | **Canyon** | Where does the time go, per thread, over time? | X time · Y stack depth · Z thread lane |
 | **Terrain** | What is the shape of this load? | X time · Y busy per bucket · Z track |
 | **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
-| **City** | Who costs the most overall? | footprint calls · height self time |
+| **City** | Which entities and activities cost the most? | entity districts · footprint inclusive time · height self time |
 | **Diff** | What regressed between two traces? | signed Δ busy, aligned at navigation start |
 | **Vitals** | Which lab milestones does the trace prove? | 2D workspace: marker-backed LCP/FCP/DCL/Load, with unsupported metrics explicitly unavailable |
 
 Overlays: web-vitals beacons (Nav/FP/FCP/LCP/DCL/Load), long-task markers
 (red bars over the main thread for tasks &gt;50 ms, tinted in the canyon too),
 screenshot filmstrip, per-frame floor tiles (dropped frames in red), JS-heap
-memory river, and causality arcs from the trace's flow events when an event
-is selected.
+memory river, and connection arcs with recorded or derived provenance.
+Canyon's Connections toggle shows up to 200 entry-level links with a visible count.
+City shows dashed arcs for the selected activity's top eight callers and callees.
 
 Everything is linked: drag across the overview strip (DevTools-style) to
 select a window; the window filters the terrain, city, and bottom-up table
@@ -46,9 +48,7 @@ Profiler parity tools:
 - **Network insight**: requests get collision-free waterfall rows,
   render-blocking requests are tinted, and translucent bands mark spans
   where the main thread idles while blocking requests are in flight.
-- **Cinematic motion**: camera preset and view changes fly on damped paths
-  and scenes grow out of the ground plane; the cost is one transform per
-  frame regardless of event count.
+- **Camera motion**: preset and view changes fly on damped paths. Reduced motion uses immediate camera changes. Data geometry never scales during entry.
 
 ## Usage
 
@@ -99,12 +99,15 @@ browser's filter and budgets, writes provenance into the output, refuses to
 overwrite any existing file, and never modifies the original. A canceled or
 failed preparation removes only its newly created, incomplete output.
 
-Controls: `Alt+1..6` (Option on macOS) switch views · `orbit/top/side`
-camera presets · `W/S` zoom, `A/D` + arrow keys pan (in top/side, left-drag
-pans as well) · drag the overview strip to select a window · `Alt+Z` zoom
-to window · `Alt+T` tracks · `Alt+I` inspector · click an event for details
-and causality arcs · `Esc` clears the selection. View, camera preset,
-scale, and brush are URL-shareable via the hash.
+System is the default view. `Alt+1..7` (Option on macOS) opens System, Canyon,
+Terrain, Rhythm, City, Diff, and Vitals in tab order.
+The Camera button beside the minimap contains the camera presets and navigation controls.
+`W/S` zoom. `A/D` and arrow keys pan. Drag the overview strip to select a window.
+`Alt+Z` zooms to the window. `Alt+T` opens tracks. `Alt+I` opens the inspector.
+Click an event for details. `Esc` clears the selection.
+In System, `,` and `.` step between recorded moments. Play supports 0.1×, 0.25×, and 1×.
+View, camera preset, scale, brush, and playhead are URL-shareable.
+For example, `#view=system&t=34.24` opens the demo at 34.24 ms.
 
 ## Architecture
 
@@ -138,6 +141,7 @@ Design rules the code enforces:
 pnpm test    # Vitest: engine adapter + aggregation suites (real-trace fixture)
 pnpm build   # tsc -b && cf build
 pnpm lint    # eslint
+pnpm test:e2e # Playwright browser journeys and rendering budgets
 ```
 
 The demo trace (`public/demo-trace.json`) doubles as the test fixture: a

@@ -7,13 +7,14 @@ import { rhythmLayout } from "./sceneBounds";
 export function selectionNameId(model: ParsedTraceModel, selection: TraceSelection | null): number | null {
   if (!selection) return null;
   if (selection.kind === "name") return selection.nameId;
+  if (selection.kind !== "entry") return null;
   const lane = model.lanes.find((l) => l.meta.id === selection.lane);
   return lane?.nameIds[selection.idx] ?? null;
 }
 
 /** A range annotation for aggregate views, not a claim of per-call geometry. */
 export function aggregateSelectionBounds(model: ParsedTraceModel, selection: TraceSelection | null, hidden: Set<number>, view: "terrain" | "rhythm", window: readonly [number, number]): WorldBounds | null {
-  if (!selection || window[1] <= window[0]) return null;
+  if (!selection || (selection.kind !== "entry" && selection.kind !== "name") || window[1] <= window[0]) return null;
   const lanes = model.lanes.filter((lane) => !hidden.has(lane.meta.id));
   const rhythmLane = lanes.find((lane) => lane.meta.kind === "main") ?? lanes[0];
   const displayed = view === "rhythm" ? lanes.filter((lane) => lane === rhythmLane) : lanes.reverse();

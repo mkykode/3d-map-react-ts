@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildConnections } from "../engine/connections";
 import { engineClient } from "../engine/engineClient";
 import {
   findingId,
@@ -11,6 +12,8 @@ import type { SessionManifest } from "../engine/protocol";
 import type { ParsedTraceModel } from "../engine/types";
 import type { RegressionProjection } from "../engine/findingContract";
 import { useAppStore, useHoverStore } from "./store";
+import { sceneLane, sceneModel } from "../test/sceneFixtures";
+import { traceSelectionBounds } from "../scene/cameraActions";
 
 function model(defaultNavigationId: string): ParsedTraceModel {
   return {
@@ -47,6 +50,8 @@ function model(defaultNavigationId: string): ParsedTraceModel {
     requests: [],
     memory: [],
     flows: [],
+    entityNames: [],
+    connections: buildConnections([]),
     totalThreads: 0,
     parseMs: 0,
   };
@@ -58,6 +63,34 @@ function loaded(defaultNavigationId: string) {
     projection: model(defaultNavigationId),
   };
 }
+
+describe("System playhead", () => {
+  it("opens connection evidence outside the zoomed brush as visible Canyon geometry", () => {
+    const parsed = sceneModel([sceneLane([{ start: 10, dur: 5 }])], 100);
+    useAppStore.setState({ model: parsed, view: "system", brush: [30, 50], zoomed: true, hiddenLanes: new Set([0]) });
+    useAppStore.getState().openInCanyon({ kind: "entry", lane: 0, idx: 0 });
+    const state = useAppStore.getState();
+    expect(state.view).toBe("canyon");
+    expect(traceSelectionBounds(parsed, state.selection, state.hiddenLanes, state.preset, state.zoomed && state.brush ? state.brush : [0, parsed.rangeMs])).not.toBeNull();
+    expect(state.brush).toEqual([30, 50]);
+  });
+  it("clamps scrubbing and brush changes, and pauses when leaving System (AC-2.2)", () => {
+    useAppStore.setState({ model: model("playback"), brush: [20, 80], playhead: null, view: "system" });
+    const state = useAppStore.getState();
+    state.setPlayhead(10);
+    expect(useAppStore.getState().playhead).toBe(20);
+    state.setPlayhead(100);
+    expect(useAppStore.getState().playhead).toBe(80);
+    state.setBrush([30, 50]);
+    expect(useAppStore.getState().playhead).toBe(50);
+    state.setPlaying(true);
+    expect(useAppStore.getState()).toMatchObject({ playing: true, playhead: 30 });
+    state.setView("canyon");
+    expect(useAppStore.getState().playing).toBe(false);
+    state.setPlayhead(NaN);
+    expect(useAppStore.getState().playhead).toBe(30);
+  });
+});
 
 function manifest(id: string): SessionManifest {
   return {
@@ -76,6 +109,8 @@ afterEach(() => {
     primarySession: null,
     secondarySession: null,
     brush: null,
+    playhead: null,
+    playing: false,
     selectedNavigationId: null,
     selection: null,
     zoomed: false,

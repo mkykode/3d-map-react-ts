@@ -121,5 +121,8 @@ function estimateRetainedBytes(
       ),
     0,
   );
-  return jsonBytes + projectionBuffers;
+  const connectionBytes = Object.values(projection.connections).reduce<number>(
+    (sum, value) => sum + (ArrayBuffer.isView(value) ? value.byteLength : encodedJsonBytes(value)), 0,
+  );
+  return jsonBytes + projectionBuffers + connectionBytes;
 }

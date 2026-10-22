@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Trace Topography: a 3D instrument for Chrome DevTools performance traces (Vite + React 19 + TypeScript + react-three-fiber). Traces are parsed by Chrome DevTools' own trace engine and rendered as five linked views: Canyon (flame chart extruded across thread lanes), Terrain (bucketed busy-time), Rhythm (FlameScope-style seconds x ms-offset fold), City (bottom-up treemap skyline), and Diff (two traces subtracted, aligned at navigation start).
+Trace Topography is a 3D instrument for Chrome DevTools performance traces (Vite, React 19, TypeScript, and react-three-fiber).
+Chrome DevTools' trace engine parses each trace.
+The tabs follow this order: System, Canyon, Terrain, Rhythm, City, Diff, and Vitals.
+`Alt+1..7` follows the same order. System is the default. Experiment imports still open Diff's regression overview.
+System maps processes, threads, and connections. Canyon shows extruded flame charts. Terrain shows bucketed busy time.
+Rhythm folds activity by time offset. City groups bottom-up activity by entity. Vitals shows page-load measurements.
 
 ## Commands
 

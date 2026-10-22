@@ -75,11 +75,13 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
   useLayoutEffect(() => {
     // The timeline occupies the bottom edge; floating panels occupy the left.
     const shiftX = size.width > 900 ? Math.min(80, size.width * 0.06) : 0;
-    const shiftY = (Math.min(100, size.height * 0.22) - 16) / 2;
+    const shiftY = view === "system" && size.width <= 620
+      ? (Math.min(360, size.height * 0.6) - 112) / 2
+      : (Math.min(100, size.height * 0.22) - 16) / 2;
     camera.setViewOffset(size.width, size.height, -shiftX, shiftY, size.width, size.height);
     invalidate();
     return () => { camera.clearViewOffset(); };
-  }, [camera, size.width, size.height, invalidate]);
+  }, [camera, size.width, size.height, view, invalidate]);
   const reducedMotion = useReducedMotion();
   const maxPolarAngle = cameraMode === "free"
     ? Math.PI

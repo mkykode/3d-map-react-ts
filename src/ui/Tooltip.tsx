@@ -32,6 +32,7 @@ export function Tooltip() {
         <br />
         {lane!.meta.name} · depth {lane!.depths[i]} · at {formatMs(lane!.starts[i])}
         </>}
+        {hover.summary?.definition !== undefined && <p>{hover.summary.definition?.text ?? "No reviewed definition"}{hover.summary.definition && <> <a href={hover.summary.definition.source.url} target="_blank" rel="noreferrer">{hover.summary.definition.source.title}</a></>}</p>}
       </div>
     </div>
   );

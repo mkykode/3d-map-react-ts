@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { buildConnections } from "./connections";
 import { sessionId } from "../domain/analysis";
 import { validateWorkerResponse, type WorkerResponse } from "./protocol";
 import type { ParsedTraceModel } from "./types";
@@ -149,6 +150,8 @@ function emptyProjection(): ParsedTraceModel {
     requests: [],
     memory: [],
     flows: [],
+    entityNames: [],
+    connections: buildConnections([]),
     totalThreads: 0,
     parseMs: 0,
   };

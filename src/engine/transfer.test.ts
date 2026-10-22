@@ -14,7 +14,7 @@ describe("worker model transfer", () => {
       traceEvents: unknown[];
     };
     const model = await parseTrace(raw.traceEvents);
-    const expectedBuffers = model.lanes.flatMap((lane) =>
+    const expectedBuffers = [...model.lanes, model.connections].flatMap((lane) =>
       Object.values(lane)
         .filter((value): value is ArrayBufferView => ArrayBuffer.isView(value))
         .map((value) => value.buffer as ArrayBuffer),
@@ -31,6 +31,7 @@ describe("worker model transfer", () => {
     }));
 
     const transferables = modelTransferables(model);
+    const connectionSnapshot = structuredClone(model.connections);
     expect(transferables).toHaveLength(expectedBuffers.length);
     for (const buffer of expectedBuffers) {
       expect(transferables.some((candidate) => candidate === buffer)).toBe(true);
@@ -38,6 +39,7 @@ describe("worker model transfer", () => {
     expect(new Set(transferables).size).toBe(transferables.length);
 
     const cloned = structuredClone(model, { transfer: transferables });
+    expect(cloned.connections).toEqual(connectionSnapshot);
     expect(cloned.defaultNavigationId).toBe(model.defaultNavigationId);
     expect(cloned.navigations).toEqual(model.navigations);
     expect(cloned.documentFrames).toEqual(model.documentFrames);

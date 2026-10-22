@@ -1425,6 +1425,9 @@ h3 {
 }
 
 .legend-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.legend-toggle { display: block; min-height: 24px; margin-bottom: 8px; padding: 0; border: 0; background: none; color: var(--ink-secondary); font: inherit; cursor: pointer; }
+.legend.collapsed { width: auto; }
+.legend.collapsed .legend-toggle { margin-bottom: 0; }
 .legend-categories li:nth-child(n + 8) { grid-column: 1 / -1; }
 .legend-encoding { margin: 0 0 8px; color: var(--ink-secondary); font-size: 11.5px; }
 .legend-help { margin-top: 8px; }
@@ -1643,8 +1646,10 @@ h3 {
 
 .hud {
   right: 14px;
-  bottom: 118px;
+  bottom: 224px;
   width: 300px;
+  max-height: calc(100% - 240px);
+  overflow: auto;
 }
 
 .hud dl {
@@ -1786,6 +1791,8 @@ h3 {
     overflow: auto;
   }
 
+  .tracks { left: 8px; right: 8px; width: auto; max-height: calc(100% - 136px); z-index: 12; }
+
   .bottomup {
     left: 8px;
     right: 8px;
@@ -1845,4 +1852,45 @@ h3 {
 
 .overlay-message.error p {
   color: var(--danger);
+}
+.narration { position: absolute; left: 16px; bottom: 128px; width: min(352px, calc(100% - 32px)); padding: 16px; z-index: 3; font: 13px/1.5 ui-monospace, monospace; }
+.narration header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+.narration h2 { margin: 0; font-size: 16px; }
+.system-time { white-space: nowrap; color: var(--ink); font-variant-numeric: tabular-nums; }
+.system-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.system-controls label { display: flex; align-items: center; gap: 8px; }
+.narration select, .system-navigator select { max-width: 100%; min-width: 0; color: var(--ink); background: var(--bg-elevated); border: 1px solid #737d89; padding: 4px 8px; border-radius: 4px; min-height: 28px; }
+.playhead-control { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.playhead-control input { flex: 1; min-width: 0; accent-color: var(--ink); }
+.system-status { color: var(--ink); font-variant-numeric: tabular-nums; }
+.narration summary { cursor: pointer; padding: 4px 0; }
+.narration details[open] { max-height: 220px; overflow: auto; }
+.system-navigator label { display: grid; gap: 4px; margin-top: 12px; }
+.system-details { max-height: calc(100% - 160px); overflow: auto; }
+.system-details p, .system-details li { overflow-wrap: anywhere; }
+.system-details a, .tooltip a { color: #a7c9f5; text-decoration: underline; }
+.connection-instances { padding-left: 24px; max-height: 260px; overflow: auto; }
+.connection-instance { display: grid; gap: 4px; width: 100%; text-align: left; padding: 8px; color: var(--ink); background: var(--control); border: 1px solid var(--hairline-strong); border-radius: 4px; margin-bottom: 4px; }
+.connection-instance:disabled { color: #a0a6af; cursor: not-allowed; }
+.scene-label-district { text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); }
+@media (max-width: 620px) {
+  .narration { left: 8px; bottom: 120px; width: calc(100% - 16px); padding: 12px; font-size: 12px; }
+  .narration .system-narration { display: none; }
+  .narration .system-controls .btn { padding: 4px 8px; }
+  .system-details { max-height: 40%; z-index: 5; }
+  .system-navigator { max-height: 180px; overflow: auto; }
+  .narration .system-status { margin: 8px 0; }
+  .legend { z-index: 10; }
+}
+.camera-cluster { position: absolute; right: 160px; bottom: 128px; z-index: 9; width: min(300px, calc(100% - 32px)); display: grid; justify-items: end; gap: 8px; pointer-events: none; }
+.camera-toggle { order: 1; }
+.camera-cluster > * { pointer-events: auto; }
+.camera-control-panel { position: static; display: grid; justify-items: start; gap: 8px; padding: 12px; width: 100%; max-height: min(360px, calc(100dvh - 300px)); overflow: auto; }
+.camera-control-panel .segmented { max-width: 100%; flex-wrap: wrap; }
+.camera-control-panel .seg { min-height: 28px; }
+@media (max-width: 700px) {
+  .camera-cluster { right: 8px; bottom: auto; top: 64px; width: min(300px, calc(100% - 16px)); }
+  .camera-toggle { order: 0; }
+  .camera-control-panel { max-height: calc(100dvh - 300px); }
+  .camera-minimap { right: 88px; top: 64px; bottom: auto; width: 80px; height: 48px; }
 }

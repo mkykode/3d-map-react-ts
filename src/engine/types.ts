@@ -38,6 +38,8 @@ export interface ColumnarLane {
   exclusiveEnds: Float64Array;
   /** Index into ParsedTraceModel.names. */
   nameIds: Uint32Array;
+  /** One-based entity index; 0 means Unattributed. */
+  entityIds: Uint32Array;
   /** One-based index into ParsedTraceModel.callFrames; 0 means no call frame. */
   callFrameIds: Uint32Array;
   /** One-based index into ParsedTraceModel.eventKeys; 0 means unserializable. */
@@ -127,6 +129,8 @@ export interface NetworkRequestInfo {
   eventKey?: string | null;
   /** True when the request blocks rendering (parser/render blocking). */
   renderBlocking: boolean;
+  initiatorType: string | null;
+  requesterLane: number | null;
 }
 
 export interface MemorySample {
@@ -139,6 +143,21 @@ export interface FlowChain {
   points: { lane: number; idx: number }[];
 }
 
+export interface ConnectionGraph {
+  edges: {
+    fromLane: number;
+    toLane: number;
+    kind: "flow" | "initiator" | "request" | "consumer";
+    provenance: "recorded" | "derived";
+  }[];
+  edgeIds: Uint32Array;
+  starts: Float64Array;
+  ends: Float64Array;
+  fromIdx: Int32Array;
+  toIdx: Int32Array;
+  unplaced: number;
+}
+
 export interface ParsedTraceModel {
   /** Raw trace bounds in µs (for cross-trace alignment). */
   boundsMinUs: number;
@@ -147,6 +166,7 @@ export interface ParsedTraceModel {
   lanes: ColumnarLane[];
   /** Shared string table for nameIds. */
   names: string[];
+  entityNames: string[];
   /** Dedicated interned strings referenced by callFrames. */
   functionNames: string[];
   scriptUrls: string[];
@@ -166,6 +186,7 @@ export interface ParsedTraceModel {
   requests: NetworkRequestInfo[];
   memory: MemorySample[];
   flows: FlowChain[];
+  connections: ConnectionGraph;
   /** Threads seen vs lanes kept, so caps are never silent. */
   totalThreads: number;
   parseMs: number;

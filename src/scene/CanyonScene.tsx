@@ -27,6 +27,7 @@ export function CanyonScene({ model }: { model: ParsedTraceModel }) {
   const preset = useAppStore((s) => s.preset);
   const [t0, t1] = zoomed && brush ? brush : [0, model.rangeMs];
   const layout = useMemo(() => traceLayout(model.lanes.filter((lane) => !hiddenLanes.has(lane.meta.id)), preset), [model, hiddenLanes, preset]);
+  const rendered = useMemo(() => new Map<number, RenderedLane | undefined>(model.lanes.map((lane) => [lane.meta.id, undefined])), [model]);
   const markers = useMemo(() => model.markers.filter((m) => m.ts >= t0 && m.ts <= t1).map((m) => ({ ...m, ts: m.ts - t0 })), [model, t0, t1]);
   const depth = layout.bounds.max[2];
   return <group>
@@ -34,17 +35,17 @@ export function CanyonScene({ model }: { model: ParsedTraceModel }) {
     <VitalsBeacons markers={markers} rangeMs={t1 - t0} depth={depth} height={Math.min(24, layout.bounds.max[1]) + 3} />
     {preset !== "side" && <StallBands model={model} t0={t0} t1={t1} depth={depth} height={8} />}
     {layout.placements.map((placement) => <group key={placement.lane.meta.id} position={[0, placement.y, placement.z]}>
-      <LaneGraphics placement={placement} t0={t0} t1={t1} requests={model.requests} />
+      <LaneGraphics placement={placement} t0={t0} t1={t1} requests={model.requests} rendered={rendered} />
       <ScreenLabel id={`lane-${placement.lane.meta.id}`} position={preset === "orbit" && placement.lane === layout.placements[0]?.lane ? [TIME_W / 2, 1, LANE_D / 2 + 3] : [-2, placement.top ? 1 : Math.min(2, placement.height / 2), 0]} align={preset === "orbit" && placement.lane === layout.placements[0]?.lane ? "center" : "right"} priority={placement.lane.meta.kind === "main" ? 70 : 10} kind="lane">
         {placement.lane.meta.name}
       </ScreenLabel>
     </group>)}
-    <FlowArcs model={model} t0={t0} t1={t1} placements={layout.placements} />
+    <FlowArcs model={model} t0={t0} t1={t1} placements={layout.placements} rendered={rendered} />
     <EventFeedback model={model} placements={layout.placements} t0={t0} t1={t1} />
   </group>;
 }
 
-function LaneGraphics({ placement, t0, t1, requests }: { placement: LanePlacement; t0: number; t1: number; requests: NetworkRequestInfo[] }) {
+function LaneGraphics({ placement, t0, t1, requests, rendered }: { placement: LanePlacement; t0: number; t1: number; requests: NetworkRequestInfo[]; rendered: Map<number, RenderedLane | undefined> }) {
   const lane = placement.lane;
   const pickIndex = useMemo(() => buildPickIndex(placement.lane), [placement.lane]);
   const flags = useMemo(() => Uint8Array.from(lane.starts, (_, i) => lane.meta.kind === "network" && requests[i]?.renderBlocking ? 2 : lane.meta.kind === "main" && lane.depths[i] === 0 && lane.durs[i] >= 50 ? 1 : 0), [lane, requests]);
@@ -60,13 +61,13 @@ function LaneGraphics({ placement, t0, t1, requests }: { placement: LanePlacemen
   const selectedIndex = useMemo(() => selectedName >= 0 && nameIndex.has(selectedName) ? buildPickIndex(placement.lane, nameIndex.get(selectedName)!) : null, [placement.lane, nameIndex, selectedName]);
   const renderedRef = useRef<RenderedLane | null>(null);
   return <>
-    <LaneBoxes placement={placement} pickIndex={pickIndex} renderedRef={renderedRef} t0={t0} t1={t1} flags={flags} />
+    <LaneBoxes placement={placement} pickIndex={pickIndex} renderedRef={renderedRef} rendered={rendered} t0={t0} t1={t1} flags={flags} />
     <LaneHitbox placement={placement} renderedRef={renderedRef} t0={t0} t1={t1} />
     {selectedIndex && <LaneBoxes key={selectedName} placement={placement} pickIndex={selectedIndex} t0={t0} t1={t1} flags={flags} capacity={nameIndex.get(selectedName)!.length} highlight />}
   </>;
 }
 
-function LaneBoxes({ placement, pickIndex, renderedRef, t0, t1, flags, capacity = placement.lane.starts.length, highlight = false }: { placement: LanePlacement; pickIndex: LanePickIndex; renderedRef?: RefObject<RenderedLane | null>; t0: number; t1: number; flags: Uint8Array; capacity?: number; highlight?: boolean }) {
+function LaneBoxes({ placement, pickIndex, renderedRef, rendered, t0, t1, flags, capacity = placement.lane.starts.length, highlight = false }: { placement: LanePlacement; pickIndex: LanePickIndex; renderedRef?: RefObject<RenderedLane | null>; rendered?: Map<number, RenderedLane | undefined>; t0: number; t1: number; flags: Uint8Array; capacity?: number; highlight?: boolean }) {
   const { lane, top, levelH } = placement;
   const ref = useRef<THREE.InstancedMesh>(null);
   const markers = useRef<THREE.Points>(null);
@@ -138,6 +139,7 @@ function LaneBoxes({ placement, pickIndex, renderedRef, t0, t1, flags, capacity 
     }
     if (renderedRef) {
       renderedRef.current = indexRenderedLane(lane, spans);
+      rendered?.set(lane.meta.id, renderedRef.current);
       const hover = useHoverStore.getState().hover;
       if (hover?.source === "canyon" && hover.lane === lane.meta.id) useHoverStore.getState().setHover(null);
     }

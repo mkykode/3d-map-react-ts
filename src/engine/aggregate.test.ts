@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildConnections } from "./connections";
 import {
   bottomUp,
   bucketize,
@@ -55,6 +56,7 @@ function lane(
     exclusiveStarts: Float64Array.from(exclusiveStarts),
     exclusiveEnds: Float64Array.from(exclusiveEnds),
     nameIds: Uint32Array.from(events.map((e) => e.nameId ?? 0)),
+    entityIds: new Uint32Array(events.length),
     callFrameIds: new Uint32Array(events.length),
     eventKeyIds: new Uint32Array(events.length),
   };
@@ -86,6 +88,8 @@ function model(
     requests: [],
     memory: [],
     flows: [],
+    entityNames: [],
+    connections: buildConnections([]),
     totalThreads: lanes.length,
     parseMs: 0,
   };
@@ -294,6 +298,8 @@ describe("computeStalls", () => {
     end,
     url: "https://x/y.css",
     renderBlocking,
+    initiatorType: null,
+    requesterLane: null,
   });
 
   it("finds idle-while-blocked bands and skips busy or unblocked time", () => {

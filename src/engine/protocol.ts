@@ -239,6 +239,7 @@ const PROJECTION_KEYS = [
   "rangeMs",
   "lanes",
   "names",
+  "entityNames",
   "functionNames",
   "scriptUrls",
   "callFrames",
@@ -255,6 +256,7 @@ const PROJECTION_KEYS = [
   "requests",
   "memory",
   "flows",
+  "connections",
   "totalThreads",
   "parseMs",
 ] as const;

@@ -1,8 +1,7 @@
 import type { CameraPreset, ScaleMode, ViewId } from "../state/store";
-import { useAppStore } from "../state/store";
+import { useAppStore, VIEW_IDS } from "../state/store";
 import { CAMERA_PRESETS } from "../scene/cameraActions";
 
-const VIEWS: ViewId[] = ["canyon", "terrain", "rhythm", "city", "diff", "vitals"];
 const SCALES: ScaleMode[] = ["linear", "log"];
 
 /**
@@ -39,6 +38,7 @@ export function initUrlState(): void {
           `${state.brush[0].toFixed(1)}-${state.brush[1].toFixed(1)}`,
         );
       }
+      if (state.playhead !== null) p.set("t", String(state.playhead));
       history.replaceState(null, "", `#${p.toString()}`);
     });
   });
@@ -50,9 +50,10 @@ function applyHash(): void {
   const preset = params.get("preset") as CameraPreset | null;
   const scale = params.get("scale") as ScaleMode | null;
   const brushRaw = params.get("brush");
+  const timeRaw = params.get("t");
 
-  const patch: Partial<ReturnType<typeof useAppStore.getState>> = {};
-  if (view && VIEWS.includes(view)) patch.view = view;
+  const patch: Partial<ReturnType<typeof useAppStore.getState>> = { brush: null, playhead: null, playing: false };
+  patch.view = view && VIEW_IDS.includes(view) ? view : "system";
   if (preset && CAMERA_PRESETS.includes(preset)) patch.preset = preset;
   if (scale && SCALES.includes(scale)) patch.scale = scale;
   if (brushRaw) {
@@ -62,4 +63,5 @@ function applyHash(): void {
     }
   }
   if (Object.keys(patch).length > 0) useAppStore.setState(patch);
+  if (timeRaw !== null && timeRaw.trim() !== "" && Number.isFinite(Number(timeRaw))) useAppStore.getState().setPlayhead(Number(timeRaw));
 }

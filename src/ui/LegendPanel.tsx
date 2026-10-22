@@ -1,12 +1,16 @@
 import { CATEGORIES, DIVERGING, SEQUENTIAL_RAMP, STATUS_SERIOUS } from "../engine/categories";
 import { useAppStore } from "../state/store";
+import { useState } from "react";
 
 export function LegendPanel() {
   const view = useAppStore((s) => s.view);
+  const [open, setOpen] = useState(() => window.matchMedia("(min-width: 621px)").matches);
 
   return (
-    <aside className="panel legend" aria-label="Legend">
-      <h3>Legend</h3>
+    <aside className={`panel legend${open ? "" : " collapsed"}`} aria-label="Legend">
+      <button className="legend-toggle" aria-expanded={open} aria-controls="legend-content" onClick={() => setOpen(!open)}>Legend</button>
+      <div id="legend-content" hidden={!open}>
+      {view === "system" && <p className="legend-encoding">Height: busy time<br />Solid arcs: recorded links<br />Dashed arcs: derived links<br />White outline: active thread</p>}
       {view === "canyon" && <p className="legend-encoding">Width: duration · height: stack<br />Thickness: self-time share</p>}
       {view !== "rhythm" && view !== "diff" && (
         <ul className="legend-list legend-categories">
@@ -93,7 +97,8 @@ export function LegendPanel() {
           peak concurrent requests. Click a bucket to inspect its time window.
         </p>
       )}
-      {view === "city" && <p className="hint">Footprint = inclusive time, which can overlap between nested calls. Height = self time. The remaining activities share a labeled building. Click to select; double-click to frame.</p>}
+      {view === "city" && <p className="hint">Districts group entities. Each building is one activity. Footprint = inclusive time. Nested calls can overlap. Height = self time. Dashed arcs show top stack callers and callees. Click to select; double-click to frame.</p>}
+      </div>
     </aside>
   );
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { buildConnections } from "../connections";
 import { sessionId, type AnalysisScope, type SessionId } from "../../domain/analysis";
 import type { ParsedTraceModel } from "../types";
 import type { CanonicalSessionData } from "./sessionRepository";
@@ -241,6 +242,7 @@ function canonical(
       exclusiveStarts: new Float64Array([0]),
       exclusiveEnds: new Float64Array([valueMs]),
       nameIds: new Uint32Array([0]),
+      entityIds: new Uint32Array(1),
       callFrameIds: new Uint32Array([1]),
       eventKeyIds: new Uint32Array([1]),
     });
@@ -407,6 +409,8 @@ function emptyProjection(): ParsedTraceModel {
     requests: [],
     memory: [],
     flows: [],
+    entityNames: [],
+    connections: buildConnections([]),
     totalThreads: 1,
     parseMs: 1,
   };

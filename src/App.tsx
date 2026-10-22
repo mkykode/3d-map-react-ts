@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { useAppStore, useHoverStore, type ViewId } from "./state/store";
+import { useAppStore, useHoverStore, VIEW_IDS, type ViewId } from "./state/store";
 import { initUrlState } from "./lib/urlState";
 import { sceneBounds } from "./scene/sceneBounds";
 import { SceneEnvironment } from "./scene/SceneEnvironment";
@@ -20,6 +20,7 @@ import {
   isEditableKeyboardTarget,
 } from "./scene/cameraActions";
 import { CanyonScene } from "./scene/CanyonScene";
+import { SystemScene } from "./scene/SystemScene";
 import { TerrainScene } from "./scene/TerrainScene";
 import { RhythmScene } from "./scene/RhythmScene";
 import { CityScene } from "./scene/CityScene";
@@ -36,20 +37,15 @@ import { HudPanel } from "./ui/HudPanel";
 import { WebVitalsView } from "./ui/WebVitalsView";
 import { ExperimentImport } from "./ui/ExperimentImport";
 import { TraceImport } from "./ui/TraceImport";
+import { NarrationPanel } from "./ui/NarrationPanel";
+import { CameraControls } from "./ui/CameraControls";
 import type { FindingId } from "./domain/analysis";
 import type { RegressionProjection } from "./engine/findingContract";
 
 // Keyed by KeyboardEvent.code: Option-modified keys produce remapped
 // characters on macOS (Option+1 is "¡"), so Alt shortcuts must match the
 // physical key position, not the produced character.
-const VIEW_KEYS: Record<string, ViewId> = {
-  Digit1: "canyon",
-  Digit2: "terrain",
-  Digit3: "rhythm",
-  Digit4: "city",
-  Digit5: "diff",
-  Digit6: "vitals",
-};
+const VIEW_KEYS: Partial<Record<string, ViewId>> = Object.fromEntries(VIEW_IDS.map((view, i) => [`Digit${i + 1}`, view]));
 
 function App() {
   const model = useAppStore((s) => s.model);
@@ -170,6 +166,7 @@ function App() {
               <CameraRig bounds={bounds} />
               <CameraFootprint bounds={bounds} side={preset === "side"} />
               <LabelLayer>
+                {model && view === "system" && <SystemScene model={model} />}
                 {model && view === "canyon" && <CanyonScene model={model} />}
                 {model && view === "terrain" && <TerrainScene model={model} />}
                 {model && view === "rhythm" && <RhythmScene model={model} />}
@@ -194,6 +191,8 @@ function App() {
               <ShaderWarmup token={`${view}-${model?.boundsMinUs ?? "empty"}`} />
             </Canvas></SceneBoundary>
             <Minimap worldDepth={worldDepth} />
+            <CameraControls />
+            {model && view === "system" && <NarrationPanel model={model} />}
             <LegendPanel />
             <DetailsPanel />
             <TrackPicker />

@@ -58,6 +58,7 @@ test("City fits an entry carried from Canyon to its displayed building", async (
 test("normal browsing excludes debug render telemetry", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".stats")).toContainText("events", { timeout: 15_000 });
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.getByRole("button", { name: "top", exact: true }).click();
   await expect(page.locator("canvas")).toBeVisible();
   expect(await page.locator("#trace-camera").getAttribute("data-render-count")).toBeNull();
@@ -81,6 +82,9 @@ test("aggregate views frame and annotate carried call ranges", async ({ page }) 
 test("a settled canvas is pixel-identical after reloading the same trace", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openWorkspace(page);
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
+  // Element screenshots include overlapping DOM chrome. Match its hover state too.
+  await page.mouse.move(1, 1);
   await expect(page.locator(".stats")).toContainText("events", { timeout: 15_000 });
   await waitForSceneIdle(page);
   const first = await page.locator("canvas").screenshot();
@@ -88,6 +92,10 @@ test("a settled canvas is pixel-identical after reloading the same trace", async
   await expect(page.locator(".stats")).toContainText("events", { timeout: 15_000 });
   await waitForSceneIdle(page);
   const second = await page.locator("canvas").screenshot();
+  if (!second.equals(first)) {
+    await test.info().attach("before-reload", { body: first, contentType: "image/png" });
+    await test.info().attach("after-reload", { body: second, contentType: "image/png" });
+  }
   expect(second.equals(first)).toBe(true);
 });
 

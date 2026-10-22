@@ -1,7 +1,38 @@
 import { useAppStore } from "../state/store";
-import { CAMERA_MODES } from "../scene/cameraActions";
+import { useRef, useState } from "react";
+import { CAMERA_CONTROL_DESCRIPTORS, CAMERA_MODES, CAMERA_PRESETS } from "../scene/cameraActions";
+import { PAN_PLANE_AXES, PAN_PLANES } from "../scene/cameraNavigation";
 
 export function CameraControls() {
+  const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const preset = useAppStore((state) => state.preset);
+  const panPlane = useAppStore((state) => state.panPlane);
+  return <aside className="camera-cluster" aria-label="Camera controls"
+    onBlur={(event) => {
+      if (window.matchMedia("(max-width: 700px)").matches && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}
+    onKeyDown={(event) => {
+      if (event.key !== "Escape" || !open) return;
+      event.stopPropagation();
+      setOpen(false);
+      toggle.current?.focus();
+    }}>
+    <button ref={toggle} className="btn camera-toggle" aria-expanded={open} aria-controls="camera-controls" onClick={() => setOpen(!open)}>Camera</button>
+    {open && <div className="panel camera-control-panel" id="camera-controls">
+      <fieldset className="segmented"><legend className="sr-only">Camera</legend>{CAMERA_PRESETS.map((value) => <button className={preset === value ? "seg active" : "seg"} key={value} aria-pressed={preset === value} onClick={() => useAppStore.getState().setPreset(value)}>{preset === value && <span aria-hidden="true">✓ </span>}{value}</button>)}</fieldset>
+      <fieldset className="segmented"><legend className="sr-only">World pan plane</legend>{PAN_PLANES.map((plane) => {
+        const [horizontal, vertical] = PAN_PLANE_AXES[plane];
+        return <button className={panPlane === plane ? "seg active" : "seg"} key={plane} aria-pressed={panPlane === plane} title={`Pan ${plane.toUpperCase()}: horizontal ${horizontal.toUpperCase()}, vertical ${vertical.toUpperCase()}`} onClick={() => useAppStore.getState().setPanPlane(plane)}>{panPlane === plane && <span aria-hidden="true">✓ </span>}pan {plane.toUpperCase()}</button>;
+      })}</fieldset>
+      <fieldset className="segmented camera-commands"><legend className="sr-only">Camera position</legend>{CAMERA_CONTROL_DESCRIPTORS.filter((control) => !control.orbitOnly).map((control) => <button key={control.id} className="seg camera-command" aria-label={control.label} aria-controls="trace-camera" aria-keyshortcuts={control.key} onClick={() => useAppStore.getState().dispatchCameraInput(control.command)} title={`${control.label} (${control.key})`}>{control.symbol}</button>)}</fieldset>
+      {preset === "orbit" && <fieldset className="segmented camera-commands"><legend className="sr-only">Camera rotation</legend>{CAMERA_CONTROL_DESCRIPTORS.filter((control) => control.orbitOnly).map((control) => <button key={control.id} className="seg camera-command camera-command-wide" aria-label={control.label} aria-controls="trace-camera" aria-keyshortcuts={control.key} onClick={() => useAppStore.getState().dispatchCameraInput(control.command)} title={`${control.label} (${control.key})`}>{control.symbol}</button>)}</fieldset>}
+      <CameraActions />
+    </div>}
+  </aside>;
+}
+
+function CameraActions() {
   const cameraMode = useAppStore((state) => state.cameraMode);
   const view = useAppStore((state) => state.view);
   const setCameraMode = useAppStore((state) => state.setCameraMode);

@@ -132,6 +132,7 @@ test("emulated one-touch orbit and two-touch pinch remain reachable", async ({
   page,
 }) => {
   await openWorkspace(page);
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
   const stage = page.getByRole("application", { name: "Interactive 3D trace" });
   await waitForLoadedCamera(page, stage);
   const bounds = await stage.boundingBox();

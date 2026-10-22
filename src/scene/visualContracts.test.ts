@@ -51,13 +51,13 @@ describe("readable, faithful scene contracts", () => {
     expect(markers[0].end - markers[0].start).toBe(0.001);
   });
 
-  it("resolves City entry, named, zero-self, and folded selections to displayed buildings", () => {
+  it("resolves City entry, named, and zero-self selections to their own buildings", () => {
     const lane = sceneLane(Array.from({ length: 90 }, (_, i) => ({ start: i, dur: 1, self: i === 89 ? 0 : 1, name: i })), 7);
     const model = sceneModel([lane]);
     const city = cityBuildings(model, new Set(), 0, 1000);
     expect(selectionNameId(model, null)).toBeNull();
     expect(selectionNameId(model, { kind: "entry", lane: 7, idx: 89 })).toBe(89);
-    expect(cityBuildingForName(city, 89)?.row.nameId).toBe(-1);
+    expect(cityBuildingForName(city, 89)?.row.nameId).toBe(89);
     expect(cityBuildingForName(city, 0)?.row.nameId).toBe(0);
     expect(cityBuildingForName(city, 999)).toBeNull();
     const zeroCity = cityBuildings(sceneModel([sceneLane([{ start: 0, dur: 10, self: 0 }])]), new Set(), 0, 1000);
@@ -125,15 +125,16 @@ describe("readable, faithful scene contracts", () => {
     expect(b.max[2] - b.min[2]).toBeGreaterThan(a.max[2] - a.min[2]);
   });
 
-  it("retains all City cost in bounded buildings, including the labeled remainder", () => {
+  it("retains all City cost with one building per activity", () => {
     const lane = sceneLane(Array.from({ length: 90 }, (_, i) => ({ start: i, dur: 1, name: i })));
     const model = sceneModel([lane]);
     const city = cityBuildings(model, new Set(), 0, 1000);
     const rows = bottomUp([lane], 0, 1000);
-    expect(city.buildings).toHaveLength(60);
-    expect(city.folded).toBe(31);
+    expect(city.buildings).toHaveLength(90);
+    expect(new Set(city.buildings.map((building) => building.row.nameId)).size).toBe(90);
     expect(city.buildings.reduce((n, b) => n + b.row.self, 0)).toBe(rows.reduce((n, r) => n + r.self, 0));
-    expect(city.buildings.reduce((n, b) => n + b.rect.w * b.rect.h, 0)).toBeCloseTo(70 * 70, 5);
+    // The district reserves a one-unit street around its buildings.
+    expect(city.buildings.reduce((n, b) => n + b.rect.w * b.rect.h, 0)).toBeCloseTo(68 * 68, 5);
     expect(sceneBounds(model, "city", new Set(), "orbit")).toEqual({ min: [45, 0, 0], max: [115, 17, 70] });
   });
 

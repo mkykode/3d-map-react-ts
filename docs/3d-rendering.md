@@ -20,7 +20,8 @@ The renderer is a data instrument. Game techniques help people read and navigate
 - Hover records identify their source view explicitly; aggregate views never impersonate negative thread IDs. Empty-canvas clicks preserve selection. Escape and the Clear selection button clear it.
 - Rhythm has at most 256 columns by 100 cells. Long recordings group seconds explicitly. Continuous exclusive-time spans accumulate by grouped columns, not by walking millions of ten-millisecond intervals.
 - `engine/rhythmLayout.ts` defines temporal grouping once for aggregation, scene layout, selection bounds, and camera fit.
-- City retains 59 activities plus a labeled remainder when necessary. Remainder totals and zero-self, positive-inclusive-time activities are not discarded. Footprint encodes inclusive time, height encodes self time. Inclusive totals can overlap between nested calls.
+- City has one building per activity within each entity district. Zero-self activities retain their inclusive footprint. Footprint encodes inclusive time, height encodes self time. Inclusive totals can overlap between nested calls.
+- City highlights the selected activity name across districts. Its dashed arcs show the top eight stack callers and callees by clipped inclusive time.
 - Terrain preserves category mixtures within each time bucket. CPU height is utilization; network height is normalized to peak aggregate request time. Selected calls in Terrain/Rhythm are labeled range annotations, not per-call geometry.
 
 ## Readability and camera
@@ -28,7 +29,7 @@ The renderer is a data instrument. Game techniques help people read and navigate
 - Canvas uses `flat`; data materials use explicit unlit face shades. Top faces preserve the category hex exactly. Side faces use fixed 0.78/0.64 linear-light multipliers. Lighting does not change category identity when the camera rotates.
 - Shader borders provide pixel-width face separation without an extra outline pass. Screen-space labels use fixed CSS pixels, priority, and collision culling. They do not shrink or foreshorten with distance.
 - A fading ground grid and environment fog provide orientation. Data colors and labels are excluded from fog. City and Terrain use one-shot contact shadows. Diff improvements remain visible below their zero plane.
-- Every view supplies its own bounds. Selection fitting resolves to that view's geometry, including carried entry selections and City's remainder. Main-stage projection offsets account for overlay space.
+- Every view supplies its own bounds. Selection fitting resolves to that view's geometry, including carried entry selections. Main-stage projection offsets account for overlay space.
 - Near plane is 1. Manual perspective distance and orthographic zoom are bounded. Strategy keeps the camera above ground; Free permits below-ground orbit and pan. Ground surfaces are front-sided so they do not conceal data from underneath. Switching back to Strategy reapplies its safety bounds.
 - Perspective approaches to Top and Side cap vertical field of view at 90 degrees, dollying back as needed to match orthographic target-plane scale before swapping cameras. These automatic approaches can exceed the manual orbit distance limit so tall layouts remain reachable.
 - Held navigation keys use delta-time acceleration and deceleration. Pointer, touch, keyboard, reduced-motion, cursor anchoring, and idle behavior have browser tests.
@@ -38,6 +39,30 @@ The renderer is a data instrument. Game techniques help people read and navigate
 - Only preset, view, or content bounds may fly the camera home. Viewport size and camera mode stay out of the flight key: a window resize or a mode toggle never discards the user's navigation.
 - Camera position, target, and zoom props seed each projection only on mount. Flight and navigation controllers own subsequent changes. Resize updates projection dimensions and overlay offsets, not the navigated pose. Explicit Fit/Reset commands use the current viewport.
 - Test render telemetry is opt-in with `?debug`. A scene error boundary keeps trace analysis available if the 3D renderer fails.
+- Camera presets, navigation, framing, and finding focus live in the Camera cluster beside the minimap. The cluster starts collapsed.
+
+## Connected System
+
+System is the default view for a single trace. Explicit view hashes remain authoritative. Experiment imports still open the regression overview.
+
+- The worker builds `connections` once. Typed instance columns transfer zero-copy with the compatibility projection.
+- Flows and recorded request initiators keep recorded provenance. Engine initiators and URL-matched consumers keep derived provenance.
+- Flow/initiator duplicates collapse to the recorded link. Consumers match the latest request for the same URL that started before the consumer.
+- System groups visible threads by process, with separate GPU and request plates. Building height follows busy time in the brush window.
+- Solid arcs show recorded links. Dashed arcs show derived links. Width represents the window's link count. All arcs share one instanced mesh.
+- Active buildings use ink-white outlines and category-colored top faces. System's neutral board treatment does not change the other views' data materials.
+- The playhead drives packets, busy threads, counts, and observation-only narration. Paused playback renders on demand. Reduced motion steps between moments.
+- Request activity markers follow request lifetimes on recorded requesting-frame routes. A marker does not assert an initiator link.
+- At 34.24 ms, the demo shows 19 requests in flight, including the document without a recorded initiator. Graph intervals remain unchanged.
+- Playback draws at most 512 packets. The playback panel discloses omitted packets. Native thread and connection controls provide keyboard access to the board.
+- Packet updates refresh the bounding sphere after matrix changes. This keeps raycasting valid after the empty overview and later scrubbing.
+- Opening evidence in Canyon disables window zoom before fitting the source entry. The analysis brush stays intact.
+- Canyon resolves connections against displayed LOD spans. It draws at most 200 arcs in stable order and identifies aggregate endpoints in hover cards.
+- `t=<ms>` stores the playhead in the URL. Time clamps to the current brush window.
+- Escape closes the Camera cluster and returns focus to its button. On mobile, leaving the cluster by keyboard closes it.
+
+Local Chromium checks at 1440×900 used seven draw calls for System. Playback's median frame interval was 30.7 ms against Canyon navigation's 55 ms.
+These measurements use the development server. The three-second startup check passes. Overview and 34.24 ms canvases are byte-identical across reloads.
 
 ## Why some proposed game techniques were not added
 
