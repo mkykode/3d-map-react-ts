@@ -1917,6 +1917,7 @@ h3 {
 .system-rail .legend { position: static; flex: 0 0 auto; max-height: 30%; overflow: auto; width: auto; padding: 8px 24px; border: 0; border-top: 1px solid var(--hairline-strong); border-radius: 0; background: transparent; box-shadow: none; }
 .system-stage .scene-label-district { text-transform: none; letter-spacing: 0; font-size: 14px; }
 .system-label-domain { font-size: 11px; color: var(--ink-secondary); }
+.system-stage .details { background: var(--bg-elevated); }
 .system-mobile-guide { display: none; }
 .system-scope { position: absolute; top: 64px; left: 16px; right: 16px; z-index: 3; pointer-events: none; }
 .system-scope h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; letter-spacing: -0.02em; }

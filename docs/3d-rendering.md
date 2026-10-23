@@ -73,6 +73,7 @@ The rejected 2D load sequence has been removed. Old `system=load` hashes fall ba
 - Request ownership uses the requester lane at request start. The request list retains unknown ownership and opens each request's timing evidence.
 - Connection descriptions explain recorded flows, inferred task initiation, request metadata, and URL matches. These descriptions do not claim a critical path.
 - System reserves a separate guide column on desktop. On mobile, the guide follows the board in a scrollable workspace.
+- System selection details use an opaque surface so overlapping scene text cannot bleed through the panel.
 - Milestone controls filter that same world from a selected main-frame hard navigation to FCP, latest LCP candidate, or Load.
 - Missing markers disable milestone filtering. A selected interval does not prove that every visible task delayed the page.
 - Fit selection frames the ownership region for a selected thread or request. Narrow screens prioritize region names and allow camera zoom for detail.
