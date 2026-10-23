@@ -67,22 +67,22 @@ export function NarrationPanel({ model }: { model: ParsedTraceModel }) {
     return () => cancelAnimationFrame(frame);
   }, [playing, rate, reduced, moments, t0, t1]);
   return <section className="panel narration" aria-label="System playback">
-    <header><h2>Connected system</h2><span className="system-time">{playhead === null ? "Overview" : `${playhead.toFixed(2)} ms`}</span></header>
-    <p className="system-narration">{playhead === null ? "Each building is a thread. Taller buildings did more work in this window. Color names the largest work category. Follow an arc to inspect the link between two threads." : narrate(model, current)}</p>
+    <header><h2>Replay the activity</h2><span className="system-time">{playhead === null ? "Overview" : `${playhead.toFixed(2)} ms`}</span></header>
+    <p className="system-narration">{playhead === null ? "White outlines show active threads. Work totals stay scoped to the selected window." : narrate(model, current)}</p>
     <div className="system-controls">
       <button className="btn" onClick={() => useAppStore.getState().setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
-      <button className="btn" aria-keyshortcuts="," disabled={!previous} onClick={() => step(-1)}>Previous moment</button>
-      <button className="btn" aria-keyshortcuts="." disabled={!next} onClick={() => step(1)}>Next moment</button>
+      <button className="btn" aria-label="Previous moment" aria-keyshortcuts="," disabled={!previous} onClick={() => step(-1)}>Previous</button>
+      <button className="btn" aria-label="Next moment" aria-keyshortcuts="." disabled={!next} onClick={() => step(1)}>Next</button>
       <label>Speed<select aria-label="Playback speed" value={rate} onChange={(event) => useAppStore.getState().setPlaybackRate(Number(event.target.value) as 0.1 | 0.25 | 1)}>{[0.1, 0.25, 1].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}</select></label>
     </div>
     <label className="playhead-control">Playhead<input aria-label="Playhead" type="range" min={t0} max={t1} step="0.01" value={playhead ?? t0} onChange={(event) => { useAppStore.getState().setPlaying(false); useAppStore.getState().setPlayhead(Number(event.target.value)); }} /></label>
     <p className="system-status" aria-label="Playback status">{playhead === null
-      ? `${index.tasks.filter(({ lane }) => !hidden.has(lane)).length} thread buildings · ${visibleRequesters.size ? model.requests.filter((request) => request.start < t1 && request.end > t0).length : 0} requests in this window`
+      ? `${index.tasks.filter(({ lane }) => !hidden.has(lane)).length} visible threads · ${visibleRequesters.size ? model.requests.filter((request) => request.start < t1 && request.end > t0).length : 0} requests in this window`
       : `${current.time.toFixed(2)} ms · ${current.active.length} busy threads · ${current.requests.length} requests in flight · ${current.phase}`}</p>
-    {omitted > 0 && <p>{omitted} packets are not drawn (512 shown).</p>}
+    {omitted > 0 && <p>The full graph exceeds the 512-packet capacity by {omitted}. Selection and route limits can hide additional markers.</p>}
     <details><summary>Threads and connections</summary>
       <SystemNavigator model={model} />
-      {reduced && <p>Reduced motion: Play steps between moments. Packets stay still.</p>}
+      {reduced && <p>Reduced motion: Play steps between moments.</p>}
       <p>Request markers show lifetimes, not initiator links.</p>
     </details>
   </section>;

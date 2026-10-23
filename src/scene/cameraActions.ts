@@ -1,7 +1,7 @@
 import type { FindingId } from "../domain/analysis";
 import type { ParsedTraceModel } from "../engine/types";
 import { eventBounds, traceLayout } from "./traceLayout";
-import { CAMERA_FOV, clampCameraZoom } from "./cameraLimits";
+import { CAMERA_FOV, MIN_CAMERA_ZOOM, clampCameraZoom } from "./cameraLimits";
 
 export const CAMERA_PRESETS = ["orbit", "top", "side"] as const;
 export const CAMERA_MODES = ["strategy", "free"] as const;
@@ -186,6 +186,23 @@ export interface SerializableCameraPose {
 
 export const MAX_CAMERA_DISTANCE = 600;
 
+export interface CameraFitLimits { maxDistance: number; minZoom: number }
+const DEFAULT_FIT_LIMITS: CameraFitLimits = { maxDistance: MAX_CAMERA_DISTANCE, minZoom: MIN_CAMERA_ZOOM };
+
+/** Let expanding ownership maps fit, with bounded room to zoom out in each projection. */
+export function cameraLimitsForBounds(bounds: WorldBounds, viewport: { width: number; height: number }) {
+  const unrestricted = { maxDistance: Infinity, minZoom: 0 };
+  const orbit = poseForBounds(bounds, "orbit", viewport, "strategy", unrestricted);
+  const top = poseForBounds(bounds, "top", viewport, "strategy", unrestricted);
+  const side = poseForBounds(bounds, "side", viewport, "strategy", unrestricted);
+  const maxDistance = Math.max(MAX_CAMERA_DISTANCE, Math.hypot(...subtract(orbit.position, orbit.target)) * 1.25);
+  return {
+    maxDistance,
+    minZoom: Math.min(MIN_CAMERA_ZOOM, top.zoom / 1.25, side.zoom / 1.25),
+    far: Math.max(4000, maxDistance + Math.hypot(...subtract(bounds.max, bounds.min)) * 2),
+  };
+}
+
 export function cameraOrientationLabel(pose: SerializableCameraPose): string {
   const dx = pose.target[0] - pose.position[0];
   const dz = pose.target[2] - pose.position[2];
@@ -256,6 +273,7 @@ export function resolveCameraAction(
     cameraMode: CameraControlMode;
     viewport: { width: number; height: number };
     selectedFindingId: FindingId | null;
+    limits?: CameraFitLimits;
   },
 ): { pose: SerializableCameraPose; selectedFindingId: FindingId | null } {
   const bounds =
@@ -268,6 +286,7 @@ export function resolveCameraAction(
       context.preset,
       context.viewport,
       context.cameraMode,
+      context.limits,
     ),
     selectedFindingId: context.selectedFindingId,
   };
@@ -278,6 +297,7 @@ export function poseForBounds(
   preset: CameraActionPreset,
   viewport: { width: number; height: number },
   mode: CameraControlMode,
+  limits: CameraFitLimits = DEFAULT_FIT_LIMITS,
 ): SerializableCameraPose {
   const target = midpoint(bounds);
   const width = Math.max(1, bounds.max[0] - bounds.min[0]);
@@ -288,13 +308,14 @@ export function poseForBounds(
 
   if (preset === "top") {
     return {
-      position: [target[0], Math.min(MAX_CAMERA_DISTANCE, target[1] + 130), target[2]],
+      position: [target[0], Math.min(limits.maxDistance, target[1] + 130), target[2]],
       target,
       zoom: clampCameraZoom(
         Math.min(
           (viewportWidth * 0.82) / (width + 20),
           (viewportHeight * 0.82) / (depth + 14),
         ),
+        limits.minZoom,
       ),
       projection: "orthographic",
       preset,
@@ -307,7 +328,7 @@ export function poseForBounds(
       position: [
         target[0],
         target[1] + 8,
-        target[2] + Math.min(MAX_CAMERA_DISTANCE, 140),
+        target[2] + Math.min(limits.maxDistance, 140),
       ],
       target,
       zoom: clampCameraZoom(
@@ -315,6 +336,7 @@ export function poseForBounds(
           (viewportWidth * 0.82) / (width + 20),
           (viewportHeight * 0.72) / (height + 12),
         ),
+        limits.minZoom,
       ),
       projection: "orthographic",
       preset,
@@ -343,7 +365,7 @@ export function poseForBounds(
     );
   }
   const distance = Math.min(
-    MAX_CAMERA_DISTANCE,
+    limits.maxDistance,
     requiredDistance,
   );
   return {

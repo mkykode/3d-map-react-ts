@@ -18,7 +18,7 @@ chart.
 |---|---|---|
 | **Canyon** | Where does the time go, per thread, over time? | X time · Y stack depth · Z thread lane |
 | **Terrain** | What is the shape of this load? | X time · Y busy per bucket · Z track |
-| **System** | Which threads exchange work, and when? | process districts · thread buildings · height busy time · color dominant work category · arcs show links |
+| **System** | Which components own the work and exchange activity? | ownership regions · owned request tiles · fixed-scale work heights · evidence routes |
 | **Rhythm** | Is the jank periodic? (FlameScope, extruded) | X seconds · Z ms offset within second · Y busy |
 | **City** | Which entities and activities cost the most? | entity districts · footprint inclusive time · height self time |
 | **Diff** | What regressed between two traces? | signed Δ busy, aligned at navigation start |
@@ -106,9 +106,21 @@ The Camera button beside the minimap contains the camera presets and navigation 
 `Alt+Z` zooms to the window. `Alt+T` opens tracks. `Alt+I` opens the inspector.
 Click an event for details. `Esc` clears the selection.
 In System, `,` and `.` step between recorded moments. Play supports 0.1×, 0.25×, and 1×.
-System keeps each thread's largest work category visible in color. White outlines mark threads active at the playhead. Blue slabs represent requests.
+System opens a 3D ownership map. Each process region contains its threads and owned request tiles.
+Positions remain stable across time windows and hidden tracks. Building height measures exclusive thread work against a recording-wide reference.
+Zero work leaves a selectable flat pad. Colors show dominant categories. White outlines mark active threads.
+Select a request to expand its evidence routes. Red stripes identify recorded blocking flags, not blocked time.
+Choose FCP, the latest LCP candidate, or Load to filter the same world from the selected page navigation.
+Use Camera → Fit selection to inspect one participant's region, especially on narrow screens.
+Its distinct subject is ownership and communication. Canyon and Terrain provide the detailed time-based views.
+System's guide explains the page's components and ranks recorded work across their visible threads.
+The demo identifies the Cloudflare bot check and Vercel feedback widget from recorded frame URLs.
+Those product roles are inferred. The guide preserves unknown roles and exposes the supporting frame evidence.
+Network requests also have an ownership summary and a keyboard-accessible request list.
+Linked requests outside the window remain visible when an in-window connection needs their endpoints. The scene labels that count.
+Work totals can overlap across threads. A process can run scripts from several sites, so its total is not a vendor-cost measurement.
 View, camera preset, scale, brush, and playhead are URL-shareable.
-For example, `#view=system&t=34.24` opens the demo at 34.24 ms.
+For example, `#view=system&t=34.24` opens System at 34.24 ms.
 
 ## Architecture
 

@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { CATEGORIES } from "../engine/categories";
 import { bottomUp } from "../engine/aggregate";
 import { formatMs } from "../scene/layout";
 import { useAppStore, windowOf } from "../state/store";
 import { SystemDetails } from "./SystemDetails";
+import { requestOwner } from "../evidence/systemContext";
 
 export function DetailsPanel() {
   const model = useAppStore((s) => s.model);
@@ -11,6 +12,18 @@ export function DetailsPanel() {
   const brush = useAppStore((s) => s.brush);
   const hiddenLanes = useAppStore((s) => s.hiddenLanes);
   const setSelection = useAppStore((s) => s.setSelection);
+  const view = useAppStore((s) => s.view);
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || !selection || view !== "system" || !window.matchMedia("(max-width: 900px)").matches) return;
+    const previous = document.activeElement;
+    panel.focus({ preventScroll: true });
+    return () => {
+      if ((panel.contains(document.activeElement) || document.activeElement === document.body) && previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [selection, view]);
 
   const content = useMemo(() => {
     if (!model || !selection) return null;
@@ -22,6 +35,17 @@ export function DetailsPanel() {
       const lane = model.lanes.find((l) => l.meta.id === selection.lane);
       const i = selection.idx;
       if (!lane || i < 0 || i >= lane.starts.length) return null;
+      if (lane.meta.kind === "network" && model.requests[i]) {
+        const request = model.requests[i];
+        return { title: request.url || "Network request", catId: lane.catIds[i], rows: [
+          ["Requested by", requestOwner(model, request).title],
+          ["Ownership basis", request.requesterLane === null ? "Requester thread not recorded" : "Resolved from the recorded frame or process at request start"],
+          ["Request lifetime", formatMs(request.end - request.start)],
+          ["Start", formatMs(request.start)], ["End", formatMs(request.end)],
+          ["Render-blocking", request.renderBlocking ? "Yes" : "No"],
+          ["Initiator type", request.initiatorType ?? "Not recorded"],
+        ] as [string, string][] };
+      }
       const callFrameId = lane.callFrameIds[i];
       const callFrame = callFrameId > 0 ? model.callFrames[callFrameId - 1] : null;
       const functionName = callFrame
@@ -69,12 +93,12 @@ export function DetailsPanel() {
     };
   }, [model, selection, brush, hiddenLanes]);
 
-  if (model && (selection?.kind === "lane" || selection?.kind === "connection")) return <SystemDetails model={model} selection={selection} />;
+  if (model && (selection?.kind === "lane" || selection?.kind === "connection")) return <SystemDetails model={model} selection={selection} panelRef={panelRef} />;
   if (!content) return null;
   const cat = CATEGORIES[content.catId];
 
   return (
-    <aside className="panel details" aria-label="Selection details">
+    <aside ref={panelRef} tabIndex={-1} className="panel details" aria-label="Selection details">
       <header>
         <span className="swatch" style={{ background: cat.color }} />
         <h3 title={content.title}>{content.title}</h3>
@@ -91,6 +115,7 @@ export function DetailsPanel() {
         ))}
       </dl>
       <p className="hint">{cat.label}</p>
+      {view === "system" && selection && <button className="btn" onClick={() => useAppStore.getState().openInCanyon(selection)}>Open in Canyon</button>}
     </aside>
   );
 }

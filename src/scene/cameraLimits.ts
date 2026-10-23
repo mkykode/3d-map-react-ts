@@ -7,8 +7,8 @@ export const MAX_CAMERA_ZOOM = 250;
 export const CAMERA_FOV = 50;
 export const MAX_FLIGHT_FOV = 90;
 
-export function clampCameraZoom(zoom: number) {
-  return Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, zoom));
+export function clampCameraZoom(zoom: number, minZoom = MIN_CAMERA_ZOOM) {
+  return Math.max(minZoom, Math.min(MAX_CAMERA_ZOOM, zoom));
 }
 
 /** Orbit polar limits alone do not stop a panned target going below ground. */

@@ -5,66 +5,86 @@ import type { ParsedTraceModel } from "../engine/types";
 import { activeIntervals, playbackIndex } from "../engine/moments";
 import { threadDefinition } from "../evidence/definitions";
 import { useAppStore, useHoverStore, windowOf } from "../state/store";
-import { CAT_COLORS, formatMs } from "./layout";
+import { CAT_COLORS, formatMs, scaleHeight } from "./layout";
 import { writeBox, uploadInstances } from "./instanceBuffers";
-import { connectedLanes, systemLayout, type SystemBuilding } from "./systemLayout";
+import { connectedLanes, SYSTEM_FLOOR, SYSTEM_WORK_HEIGHT, systemLayout, type SystemBuilding } from "./systemLayout";
 import { ConnectionArcs } from "./ConnectionArcs";
 import { ConnectionPackets } from "./ConnectionPackets";
-import type { ConnectionArc } from "./connectionGeometry";
+import { systemConnections } from "./systemConnections";
 import { ScreenLabel } from "./ScreenLabels";
 import type { WorldBounds } from "./cameraActions";
-import { CAT_ID, CATEGORIES } from "../engine/categories";
+import { CAT_ID, CATEGORIES, STATUS_SERIOUS } from "../engine/categories";
 import { DataMaterial } from "./DataMaterial";
+import { componentContext, connectionLabel, CONNECTION_MEANING, requestOwner, threadLabel } from "../evidence/systemContext";
 
 export function SystemScene({ model }: { model: ParsedTraceModel }) {
   const brush = useAppStore((state) => state.brush);
   const hidden = useAppStore((state) => state.hiddenLanes);
   const scale = useAppStore((state) => state.scale);
   const selection = useAppStore((state) => state.selection);
+  const preset = useAppStore((state) => state.preset);
   const [t0, t1] = windowOf(model, brush);
   const layout = useMemo(() => systemLayout(model, hidden, t0, t1, scale), [model, hidden, t0, t1, scale]);
   const related = useMemo(() => connectedLanes(model, selection), [model, selection]);
   const index = useMemo(() => playbackIndex(model), [model]);
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => useAppStore.subscribe((state, previous) => { if (state.playhead !== previous.playhead) invalidate(); }), [invalidate]);
-  const arcs = useMemo<ConnectionArc[]>(() => model.connections.edges.flatMap((edge, id) => {
-    const from = layout.anchors.get(edge.fromLane), to = layout.anchors.get(edge.toLane);
-    if (!from || !to || !layout.links.counts[id]) return [];
-    const dim = selection?.kind === "connection" ? selection.edge !== id : selection?.kind === "lane" || selection?.kind === "entry" ? edge.fromLane !== selection.lane && edge.toLane !== selection.lane : false;
-    return [{ id, from, to, count: layout.links.counts[id], provenance: edge.provenance, dim }];
-  }), [model, layout, selection]);
+  const routes = useMemo(() => systemConnections(model, layout, selection), [model, layout, selection]);
+  const requestAnchors = useMemo(() => new Map(layout.requests.map((request) => [request.index, request.anchor])), [layout]);
+  const ticks = [0, layout.heightMax / 2, layout.heightMax];
+  const scaleX = -20;
+  const scaleZ = layout.plates.find((plate) => plate.bounds.min[2] === 0)?.bounds.min[2] ?? 0;
+  const scaleBoxes: WorldBounds[] = [{ min: [scaleX, SYSTEM_FLOOR, scaleZ + 14], max: [scaleX + 0.2, SYSTEM_FLOOR + SYSTEM_WORK_HEIGHT, scaleZ + 14.2] }, ...ticks.map((value): WorldBounds => {
+    const y = SYSTEM_FLOOR + scaleHeight(value, layout.heightMax, SYSTEM_WORK_HEIGHT, scale);
+    return { min: [scaleX - 1, y, scaleZ + 14], max: [scaleX + 1, y + 0.15, scaleZ + 14.2] };
+  })];
   const hoverBuilding = (building: SystemBuilding, event: ThreeEvent<PointerEvent>) => {
     const lane = model.lanes[building.lane];
     useHoverStore.getState().setHover({ source: "system", idx: building.lane, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
-      summary: { title: lane.meta.name, catId: building.catId,
+       summary: { title: `${componentContext(model, building.lane, t0, t1).title} / ${threadLabel(lane.meta)}`, catId: building.catId,
         detail: `${formatMs(building.busy)} busy · ${building.busy > 0 ? `${CATEGORIES[building.catId].label} is the largest category by busy time.` : "No work in this window."} ${building.incoming} links in · ${building.outgoing} links out. Top activities: ${building.activities.slice(0, 3).map((row) => `${model.names[row.nameId]} ${formatMs(row.self)}`).join(", ") || "None in this window"}.`, definition: threadDefinition(lane.meta) } });
   };
   return <group name="system-board">
     <SystemBoxes name="system-plates" boxes={layout.plates.map((plate) => plate.bounds)} bounds={layout.bounds} />
-    <SystemBuildings buildings={layout.buildings} bounds={layout.bounds} related={related} index={index} onHover={hoverBuilding} />
+    <SystemBoxes name="system-request-areas" boxes={layout.plates.flatMap((plate) => plate.requestArea ? [plate.requestArea] : [])} bounds={layout.bounds} color="#1e2026" />
+    <SystemBoxes name="system-thread-bases" boxes={layout.buildings.map(({ bounds }): WorldBounds => ({ min: [bounds.min[0] - 0.5, SYSTEM_FLOOR, bounds.min[2] - 0.5], max: [bounds.max[0] + 0.5, SYSTEM_FLOOR + 0.08, bounds.max[2] + 0.5] }))} bounds={layout.bounds} color="#5c6470"
+      onHover={(i, event) => hoverBuilding(layout.buildings[i], event)} onSelect={(i) => useAppStore.getState().setSelection({ kind: "lane", lane: layout.buildings[i].lane })} />
+    <SystemBuildings buildings={layout.buildings.filter((building) => building.busy > 0)} bounds={layout.bounds} related={related} index={index} onHover={hoverBuilding} />
     <SystemBoxes name="system-requests" boxes={layout.requests.map((request) => request.bounds)} bounds={layout.bounds}
       onHover={(i, event) => {
         const request = model.requests[layout.requests[i].index];
         useHoverStore.getState().setHover({ source: "system", idx: i, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
-          summary: { title: request.url, catId: CAT_ID.loading, detail: `${formatMs(request.start)} to ${formatMs(request.end)} · ${request.initiatorType ?? "Initiator not recorded"}` } });
+          summary: { title: request.url, catId: CAT_ID.loading, detail: `Requested by ${requestOwner(model, request).title}. ${formatMs(request.end - request.start)} request lifetime · ${formatMs(request.start)} to ${formatMs(request.end)}. ${request.renderBlocking ? "Render-blocking request." : ""}` } });
       }}
       onSelect={(i) => {
         const lane = model.lanes.find((lane) => lane.meta.kind === "network");
         if (lane) useAppStore.getState().setSelection({ kind: "entry", lane: lane.meta.id, idx: layout.requests[i].index });
       }} />
-    <ConnectionArcs arcs={arcs} onSelect={(arc) => useAppStore.getState().setSelection({ kind: "connection", edge: arc.id })}
+    <SystemBoxes name="system-blocking-flags" boxes={layout.requests.flatMap(({ index, bounds }): WorldBounds[] => model.requests[index].renderBlocking ? [{ min: [bounds.min[0], bounds.max[1] + 0.02, bounds.max[2] - 0.45], max: [bounds.max[0], bounds.max[1] + 0.12, bounds.max[2]] }] : [])} bounds={layout.bounds} color={STATUS_SERIOUS} />
+    <ConnectionArcs arcs={routes.arcs} onSelect={(arc) => {
+      const network = model.lanes.find((lane) => lane.meta.kind === "network");
+      useAppStore.getState().setSelection(arc.request !== undefined && network ? { kind: "entry", lane: network.meta.id, idx: arc.request } : { kind: "connection", edge: arc.id });
+    }}
       onHover={(arc, event) => {
         if (!arc) { useHoverStore.getState().setHover(null); return; }
         const edge = model.connections.edges[arc.id];
         useHoverStore.getState().setHover({ source: "connection", idx: arc.id, clientX: event.nativeEvent.clientX, clientY: event.nativeEvent.clientY,
-          summary: { title: `${model.lanes[edge.fromLane].meta.name} → ${model.lanes[edge.toLane].meta.name}`, catId: 0,
-            detail: `${arc.count} ${edge.provenance} links · ${edge.kind}${edge.kind === "consumer" ? ". URL match: latest request started before the consumer." : ""}` } });
+          summary: { title: connectionLabel(model, edge, t0, t1), catId: 0,
+            detail: `${arc.count} ${edge.provenance} links · ${CONNECTION_MEANING[edge.kind].label}. ${CONNECTION_MEANING[edge.kind].description}` } });
       }} />
-    <ConnectionPackets model={model} arcs={arcs} index={index} anchors={layout.anchors} />
-    {layout.plates.map((plate) => <ScreenLabel key={plate.id} id={`system-${plate.id}`} position={[plate.bounds.min[0] + 23, 1.2, plate.bounds.min[2] + 2]} priority={90} kind="district">{plate.label}</ScreenLabel>)}
-    {layout.buildings.map((building) => <ScreenLabel key={building.lane} id={`system-lane-${building.lane}`} position={[building.anchor[0], building.anchor[1] + 6, building.anchor[2]]} priority={model.lanes[building.lane].meta.kind === "main" ? 70 : 50}>
-      {model.lanes[building.lane].meta.name.split(" — ")[0]}<br />
-      {building.busy > 0 ? `${CATEGORIES[building.catId].label} · ${formatMs(building.busy)} busy` : "No work in this window"}
+    <ConnectionPackets model={model} arcs={routes.arcs} index={index} anchors={layout.anchors} requests={requestAnchors} />
+    <SystemBoxes name="system-work-scale" boxes={scaleBoxes} bounds={layout.bounds} color="#8a8f98" />
+    {ticks.map((value) => <ScreenLabel key={value} id={`system-scale-${value}`} position={[scaleX - 2, SYSTEM_FLOOR + scaleHeight(value, layout.heightMax, SYSTEM_WORK_HEIGHT, scale), scaleZ + 14]} priority={115} align="right">{formatMs(value)}</ScreenLabel>)}
+    {routes.omitted > 0 && <ScreenLabel id="system-route-limit" position={[layout.bounds.max[0] / 2, 1, layout.bounds.max[2]]} priority={100}>{routes.arcs.length} routes shown · {routes.omitted} more in the guide</ScreenLabel>}
+    {layout.plates.map((plate) => <ScreenLabel key={plate.id} id={`system-${plate.id}`} position={[(plate.bounds.min[0] + plate.bounds.max[0]) / 2, plate.infrastructure ? preset === "side" ? SYSTEM_WORK_HEIGHT + 28 : 12 : 1.2, plate.infrastructure ? plate.bounds.min[2] : plate.bounds.max[2] + 10]} priority={120} kind="district">
+      <strong>{plate.label}</strong><br /><span className="system-label-domain">{plate.context.domain || (plate.id === "unknown" ? "No requester recorded" : "Browser infrastructure")}</span><br />
+      <span className="system-label-domain">{plate.context.relationship || "Shared browser service"}</span>
+    </ScreenLabel>)}
+    {layout.plates.filter((plate) => plate.requestArea).map((plate) => <ScreenLabel key={plate.id} id={`system-requests-${plate.id}`} position={[(plate.bounds.min[0] + plate.bounds.max[0]) / 2, 2, plate.requestArea!.min[2]]} priority={90} kind="request-owner">{plate.requestCount} {plate.id === "unknown" ? "unowned" : "owned"} request{plate.requestCount === 1 ? "" : "s"}{plate.earlierCount ? ` · ${plate.earlierCount} outside window` : ""}{plate.lanes.length === 0 && plate.id !== "unknown" ? " · owner hidden" : ""}</ScreenLabel>)}
+    {layout.buildings.map((building) => <ScreenLabel key={building.lane} id={`system-lane-${building.lane}`} position={[building.anchor[0], building.anchor[1] + (preset === "side" ? 18 : 8), building.anchor[2]]} priority={model.lanes[building.lane].meta.kind === "main" ? 110 : 50}>
+      {threadLabel(model.lanes[building.lane].meta)}<br />
+      {building.busy > 0 ? `${formatMs(building.busy)} · ${CATEGORIES[building.catId].label}` : "No work in this window"}
+      {selection?.kind === "lane" && selection.lane === building.lane && !!routes.localCounts.get(building.lane) && <><br /><span className="system-label-domain">{routes.localCounts.get(building.lane)} local links</span></>}
     </ScreenLabel>)}
   </group>;
 }
@@ -122,17 +142,17 @@ function SystemMaterial() {
   return <meshBasicMaterial fog={false} toneMapped={false} onBeforeCompile={compile} customProgramCacheKey={() => "system-building-v2"} />;
 }
 
-function SystemBoxes({ name, boxes, bounds, onHover, onSelect }: {
-  name: string; boxes: WorldBounds[]; bounds: WorldBounds;
+function SystemBoxes({ name, boxes, bounds, onHover, onSelect, color: hex }: {
+  name: string; boxes: WorldBounds[]; bounds: WorldBounds; color?: string;
   onHover?: (index: number, event: ThreeEvent<PointerEvent>) => void; onSelect?: (index: number) => void;
 }) {
   const mesh = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
     if (!mesh.current) return;
-    const color = name === "system-plates" ? new Color("#252a32") : CAT_COLORS[CAT_ID.loading];
+    const color = hex ? new Color(hex) : name === "system-plates" ? new Color("#252a32") : CAT_COLORS[CAT_ID.loading];
     boxes.forEach((box, i) => { fillBox(mesh.current!, i, box); mesh.current!.setColorAt(i, color); });
     uploadInstances(mesh.current, boxes.length, bounds);
-  }, [boxes, bounds, name]);
+  }, [boxes, bounds, name, hex]);
   return <instancedMesh ref={mesh} name={name} args={[undefined, undefined, Math.max(1, boxes.length)]} count={boxes.length}
     onPointerMove={(event) => { if (onHover && event.instanceId !== undefined) { event.stopPropagation(); onHover(event.instanceId, event); } }}
     onPointerOut={() => { if (onHover) useHoverStore.getState().setHover(null); }}

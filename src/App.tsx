@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
+import { SystemOverview } from "./ui/SystemOverview";
+import { SystemScope } from "./ui/SystemScope";
 import { useAppStore, useHoverStore, VIEW_IDS, type ViewId } from "./state/store";
 import { initUrlState } from "./lib/urlState";
 import { sceneBounds } from "./scene/sceneBounds";
@@ -127,13 +129,15 @@ function App() {
   return (
     <div className="shell">
       <Toolbar />
-      <main className="stage">
+      <main className={`stage${view === "system" ? " system-stage" : ""}`}>
         <ExperimentImport />
         <TraceImport />
         {model && view === "vitals" ? (
           <WebVitalsView model={model} />
         ) : (
           <>
+            <div className="scene-workspace">
+            {model && view === "system" && <SystemScope model={model} />}
             <p id="camera-instructions" className="sr-only">
               Interactive 3D trace. Trackpad scroll or arrow keys pan. Pinch,
               mouse wheel, W, or S zoom. In orbit mode, Q and E rotate while R
@@ -192,14 +196,20 @@ function App() {
             </Canvas></SceneBoundary>
             <Minimap worldDepth={worldDepth} />
             <CameraControls />
-            {model && view === "system" && <NarrationPanel model={model} />}
-            <LegendPanel />
+            {model && view === "system" && <button className="btn system-mobile-guide" onClick={() => document.getElementById("system-guide")?.focus()}>Read components &amp; requests ↓</button>}
+            {view !== "system" && <LegendPanel />}
             <DetailsPanel />
             <TrackPicker />
             <HudPanel />
             {(view === "canyon" || view === "city") && <BottomUpTable />}
             {view !== "diff" && <BrushBar />}
             <Tooltip />
+            </div>
+            {model && view === "system" && <aside id="system-guide" tabIndex={-1} className="system-rail" aria-label="System guide">
+              <SystemOverview model={model} />
+              <NarrationPanel model={model} />
+              <LegendPanel />
+            </aside>}
           </>
         )}
         {view === "diff" && !regressionProjection && !findingProjection && (

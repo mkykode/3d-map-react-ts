@@ -4,13 +4,13 @@ import { useState } from "react";
 
 export function LegendPanel() {
   const view = useAppStore((s) => s.view);
-  const [open, setOpen] = useState(() => window.matchMedia("(min-width: 621px)").matches);
+  const [open, setOpen] = useState(() => view !== "system" && window.matchMedia("(min-width: 621px)").matches);
 
   return (
     <aside className={`panel legend${open ? "" : " collapsed"}`} aria-label="Legend">
       <button className="legend-toggle" aria-expanded={open} aria-controls="legend-content" onClick={() => setOpen(!open)}>Legend</button>
       <div id="legend-content" hidden={!open}>
-      {view === "system" && <p className="legend-encoding">Each building: one thread<br />Height: busy time in this window<br />Color: largest category by busy time<br />Blue slabs: network requests<br />Solid arcs: recorded links<br />Dashed arcs: derived links<br />White outline: active thread</p>}
+      {view === "system" && <p className="legend-encoding">Each region: process ownership<br />Each building: one thread<br />Height: exclusive work, fixed scale<br />Flat pad: no work in this window<br />Color: largest category by busy time<br />Blue tiles: owned requests<br />Red stripe: recorded blocking flag<br />Solid arcs: recorded links<br />Dashed arcs: derived links<br />Small loops: same-thread activity<br />Select a request to expand its routes<br />White outline: active thread</p>}
       {view === "canyon" && <p className="legend-encoding">Width: duration · height: stack<br />Thickness: self-time share</p>}
       {view !== "rhythm" && view !== "diff" && (
         <ul className="legend-list legend-categories">

@@ -10,6 +10,7 @@ import { useAppStore } from "../state/store";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import {
   poseForBounds,
+  cameraLimitsForBounds,
   resolveCameraAction,
   traceSelectionBounds,
   MAX_CAMERA_DISTANCE,
@@ -33,6 +34,7 @@ import { aggregateSelectionBounds, selectionNameId } from "./traceSelection";
 import { CITY_H, scaleHeight } from "./layout";
 import { CITY_X } from "./sceneBounds";
 import { diffMarkBounds } from "./diffLayout";
+import { systemLayout, systemSelectionBounds } from "./systemLayout";
 import {
   regressionMarkBounds,
 } from "./regressionPicking";
@@ -70,14 +72,29 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
   const poseRevision = useRef(0);
   const size = useThree((state) => state.size);
   const camera = useThree((state) => state.camera);
-  const fitSize = useMemo(() => ({ width: Math.max(size.width * 0.65, size.width - 380), height: Math.max(size.height * 0.7, size.height - 120) }), [size]);
+  const fitSize = useMemo(() => ({ width: view === "system" ? size.width * 0.94 : Math.max(size.width * 0.65, size.width - 380), height: Math.max(size.height * 0.7, size.height - 120) }), [size, view]);
+  const requestedFitLimits = useMemo(() => view === "system" ? cameraLimitsForBounds(workspaceBounds, fitSize) : undefined, [view, workspaceBounds, fitSize]);
+  const [retainedFitLimits, setRetainedFitLimits] = useState<{ bounds: WorldBounds; limits: ReturnType<typeof cameraLimitsForBounds> } | null>(null);
+  let fitLimits = requestedFitLimits;
+  if (requestedFitLimits) {
+    const previous = retainedFitLimits?.bounds === workspaceBounds ? retainedFitLimits.limits : null;
+    // Resizing may expand navigation limits, but must never clamp an existing pose.
+    if (previous && previous.maxDistance >= requestedFitLimits.maxDistance && previous.minZoom <= requestedFitLimits.minZoom && previous.far >= requestedFitLimits.far) {
+      fitLimits = previous;
+    } else {
+      fitLimits = {
+        maxDistance: Math.max(previous?.maxDistance ?? 0, requestedFitLimits.maxDistance),
+        minZoom: Math.min(previous?.minZoom ?? Infinity, requestedFitLimits.minZoom),
+        far: Math.max(previous?.far ?? 0, requestedFitLimits.far),
+      };
+      setRetainedFitLimits({ bounds: workspaceBounds, limits: fitLimits });
+    }
+  }
   const invalidate = useThree((state) => state.invalidate);
   useLayoutEffect(() => {
     // The timeline occupies the bottom edge; floating panels occupy the left.
-    const shiftX = size.width > 900 ? Math.min(80, size.width * 0.06) : 0;
-    const shiftY = view === "system" && size.width <= 620
-      ? (Math.min(360, size.height * 0.6) - 112) / 2
-      : (Math.min(100, size.height * 0.22) - 16) / 2;
+    const shiftX = view !== "system" && size.width > 900 ? Math.min(80, size.width * 0.06) : 0;
+    const shiftY = view === "system" ? -Math.min(56, size.height * 0.08) : (Math.min(100, size.height * 0.22) - 16) / 2;
     camera.setViewOffset(size.width, size.height, -shiftX, shiftY, size.width, size.height);
     invalidate();
     return () => { camera.clearViewOffset(); };
@@ -86,7 +103,7 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
   const maxPolarAngle = cameraMode === "free"
     ? Math.PI
     : preset === "top" ? Math.PI / 2 : Math.PI / 2 - 0.02;
-  const maxDistance = cameraMode === "strategy" ? MAX_CAMERA_DISTANCE : 900;
+  const maxDistance = Math.max(cameraMode === "strategy" ? MAX_CAMERA_DISTANCE : 900, fitLimits?.maxDistance ?? 0);
   const worldDepth = workspaceBounds.max[2];
 
   const publishPose = useCallback(
@@ -140,8 +157,8 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
     (mark) => mark.findingId === selectedFindingId,
   );
   const presetPose = useMemo(
-    () => poseForBounds(workspaceBounds, preset, fitSize, cameraMode),
-    [cameraMode, preset, fitSize, workspaceBounds],
+    () => poseForBounds(workspaceBounds, preset, fitSize, cameraMode, fitLimits),
+    [cameraMode, preset, fitSize, workspaceBounds, fitLimits],
   );
   const center = useMemo(
     () => new THREE.Vector3(...presetPose.target),
@@ -182,6 +199,7 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
         } : null;
       }
       if (model && (view === "terrain" || view === "rhythm")) selectedBounds = aggregateSelectionBounds(model, selection, hiddenLanes, view, view === "terrain" && brush ? brush : [0, model.rangeMs]);
+      if (model && view === "system") selectedBounds = systemSelectionBounds(model, systemLayout(model, hiddenLanes, brush?.[0] ?? 0, brush?.[1] ?? model.rangeMs, scale), selection);
       const result = resolveCameraAction(kind, {
         workspace: workspaceBounds,
         selection: selectedBounds,
@@ -189,6 +207,7 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
         cameraMode,
         viewport: fitSize,
         selectedFindingId,
+        limits: fitLimits,
       });
       return {
         position: new THREE.Vector3(...result.pose.position),
@@ -205,6 +224,7 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
       selectedRegressionMark,
       selection,
       fitSize,
+      fitLimits,
       findingProjection,
       regressionProjection,
       selectedEvidenceId,
@@ -258,12 +278,14 @@ export function CameraRig({ bounds: workspaceBounds }: { bounds: WorldBounds }) 
       // Ortho ignores distance limits. Its approach must also reach the scale-
       // matched landing position, which can exceed the manual orbit limit.
       maxDistance={preset === "orbit" ? maxDistance : Infinity}
+      minZoom={fitLimits?.minZoom ?? MIN_CAMERA_ZOOM}
+      far={fitLimits?.far ?? 4000}
     />
   );
 }
 
 function CameraProjection({
-  mode, pose, assignControls, enableRotate, maxPolarAngle, maxDistance,
+  mode, pose, assignControls, enableRotate, maxPolarAngle, maxDistance, minZoom, far,
 }: {
   mode: "top" | "side" | null;
   pose: Pick<SerializableCameraPose, "position" | "target" | "zoom">;
@@ -271,16 +293,18 @@ function CameraProjection({
   enableRotate: boolean;
   maxPolarAngle: number;
   maxDistance: number;
+  minZoom: number;
+  far: number;
 }) {
   // After mounting, the flight/runtime controllers exclusively own navigation.
   const [initialPose] = useState(pose);
   return (
     <>
       {mode === null ? (
-        <PerspectiveCamera makeDefault fov={CAMERA_FOV} near={1} far={4000} position={initialPose.position} />
+        <PerspectiveCamera makeDefault fov={CAMERA_FOV} near={1} far={far} position={initialPose.position} />
       ) : (
         <OrthographicCamera
-          makeDefault near={1} far={4000}
+          makeDefault near={1} far={far}
           position={initialPose.position}
           zoom={initialPose.zoom}
           up={mode === "top" ? [0, 0, -1] : [0, 1, 0]}
@@ -298,7 +322,7 @@ function CameraProjection({
         maxPolarAngle={maxPolarAngle}
         maxDistance={maxDistance}
         minDistance={6}
-        minZoom={MIN_CAMERA_ZOOM}
+        minZoom={minZoom}
         maxZoom={MAX_CAMERA_ZOOM}
       />
     </>

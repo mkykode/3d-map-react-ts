@@ -8,7 +8,7 @@ Trace Topography is a 3D instrument for Chrome DevTools performance traces (Vite
 Chrome DevTools' trace engine parses each trace.
 The tabs follow this order: Canyon, Terrain, System, Rhythm, City, Diff, and Vitals.
 `Alt+1..7` follows the same order. Canyon is the default. Experiment imports still open Diff's regression overview.
-System maps processes, threads, and connections. Canyon shows extruded flame charts. Terrain shows bucketed busy time.
+System maps process ownership, threads, and communication in the R3F 3D world. Canyon shows extruded flame charts. Terrain shows bucketed busy time.
 Rhythm folds activity by time offset. City groups bottom-up activity by entity. Vitals shows page-load measurements.
 
 ## Commands
@@ -39,6 +39,8 @@ CI (`.github/workflows/ci.yml`) runs install, build, lint, test. TypeScript is p
 
 - `public/demo-trace.json` is both the demo and the test fixture (1.2 s slice of a real load, screenshots + CPU profile intact). Tests assert exact counts from it (17 screenshots); regenerate it and the assertions together.
 - Deterministic rendering is a tested product guarantee: same trace, same pixels. Never add randomness or time-seeded values to the render path.
+- System must remain a real R3F 3D scene with meaningful depth and height. Use Canyon's rendering quality as the reference, not its timeline encoding.
+- System's distinct subject is ownership and communication. Do not replace it with a 2D timeline or duplicate Terrain's time-by-lane busy-time visualization.
 - trace_engine timestamps are microseconds; everything downstream of the adapter is milliseconds relative to trace start. Convert only in the adapter.
 - The old grid/noise prototype (TopoMap/eventCategories/getColorForEvent) is deleted; do not resurrect its patterns.
 

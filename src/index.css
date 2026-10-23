@@ -1873,6 +1873,78 @@ h3 {
 .connection-instance { display: grid; gap: 4px; width: 100%; text-align: left; padding: 8px; color: var(--ink); background: var(--control); border: 1px solid var(--hairline-strong); border-radius: 4px; margin-bottom: 4px; }
 .connection-instance:disabled { color: #a0a6af; cursor: not-allowed; }
 .scene-label-district { text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); }
+.scene-workspace { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.system-stage { display: grid; grid-template-columns: minmax(0, 1fr) 368px; grid-template-rows: minmax(0, 1fr); }
+.system-rail { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg-elevated); border-left: 1px solid var(--hairline-strong); font-size: 14px; line-height: 1.5; }
+.system-overview { min-height: 0; overflow: auto; padding: 16px 24px; flex: 1; }
+.system-rail p { margin: 8px 0 16px; }
+.system-rail h2 { margin: 0; font-size: 20px; line-height: 1.2; letter-spacing: -0.02em; }
+.system-rail h3 { margin: 0; font-size: 16px; }
+.system-rail small { display: block; color: var(--ink-secondary); font-size: 12px; }
+.system-rail summary { cursor: pointer; min-height: 28px; padding: 4px 0; }
+.system-rail details p { color: var(--ink-secondary); }
+.system-eyebrow, .system-window { color: var(--ink-secondary); font-size: 12px; }
+.system-eyebrow { letter-spacing: 0.08em; text-transform: uppercase; }
+.system-explanation { color: var(--ink-secondary); }
+.system-summary-switch { display: flex; gap: 8px; margin: 16px 0; }
+.system-summary-switch [aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); outline: 1px solid var(--accent-hover); }
+.system-component { padding: 12px 0; border-top: 1px solid var(--hairline-strong); }
+.system-component p { margin: 8px 0; }
+.system-component-select { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; width: 100%; padding: 0; border: 0; text-align: left; color: var(--ink); background: transparent; cursor: pointer; font: inherit; }
+.system-component-select strong { font-size: 16px; }
+.system-component-select > span { min-width: 0; overflow-wrap: anywhere; }
+.system-component-select[aria-pressed="true"] { color: var(--accent-hover); }
+.system-metric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.system-work-bar { grid-column: 1 / -1; height: 4px; background: var(--control); }
+.system-work-bar > span { display: block; height: 100%; background: var(--ink-secondary); }
+.system-work-breakdown { margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.system-method { margin-bottom: 24px; }
+.system-network { border-top: 1px solid var(--hairline-strong); padding-top: 16px; }
+.system-network h3 { display: flex; justify-content: space-between; }
+.system-request-owners { margin: 16px 0; }
+.system-request-owners > div { display: flex; justify-content: space-between; gap: 16px; margin: 4px 0; }
+.system-request-owners dd { margin: 0; font-variant-numeric: tabular-nums; }
+.system-request-list { padding-left: 24px; }
+.system-request-list button { overflow-wrap: anywhere; }
+.system-rail .narration { position: static; flex: 0 0 auto; width: auto; padding: 16px 24px; margin: 0; border: 0; border-top: 1px solid var(--hairline-strong); border-radius: 0; background: transparent; box-shadow: none; font: inherit; max-height: 50%; overflow: auto; }
+.system-rail .narration .system-narration { font-size: 13px; }
+.system-rail .narration p { margin: 8px 0; }
+.system-rail .narration .btn { padding: 4px 8px; }
+.system-rail .narration .system-controls { gap: 6px; font-size: 12px; }
+.system-rail .narration .system-status { font-size: 12px; }
+.system-rail .narration h2 { font-size: 18px; }
+.system-rail .narration details[open] { max-height: none; overflow: visible; }
+.system-rail .legend { position: static; flex: 0 0 auto; max-height: 30%; overflow: auto; width: auto; padding: 8px 24px; border: 0; border-top: 1px solid var(--hairline-strong); border-radius: 0; background: transparent; box-shadow: none; }
+.system-stage .scene-label-district { text-transform: none; letter-spacing: 0; font-size: 14px; }
+.system-label-domain { font-size: 11px; color: var(--ink-secondary); }
+.system-mobile-guide { display: none; }
+.system-scope { position: absolute; top: 64px; left: 16px; right: 16px; z-index: 3; pointer-events: none; }
+.system-scope h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; letter-spacing: -0.02em; }
+.system-scope p { margin: 4px 0 8px; color: var(--ink-secondary); font-size: 13px; }
+.system-scope-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; pointer-events: auto; width: fit-content; max-width: 100%; }
+.system-scope-controls label { display: grid; gap: 4px; max-width: 100%; color: var(--ink-secondary); font-size: 12px; }
+.system-scope-controls select { max-width: 100%; min-height: 32px; padding: 4px 8px; border: 1px solid #737d89; border-radius: 8px; background: var(--bg-elevated); color: var(--ink); }
+.system-scope-controls .btn { min-height: 32px; }
+.scene-label-request-owner { color: #a7c9f5; }
+@media (max-height: 760px) {
+  .system-stage .scene-label-district .system-label-domain { display: none; }
+}
+@media (max-width: 900px) {
+  .system-stage { display: block; overflow: auto; }
+  .system-stage .scene-workspace { height: max(820px, 100dvh); }
+  .system-rail { display: block; border-left: 0; border-top: 1px solid var(--hairline-strong); }
+  .system-overview { overflow: visible; }
+  .system-rail .narration .system-narration { display: block; }
+  .system-stage .details { position: fixed; top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; max-height: min(480px, 60dvh); overflow: auto; z-index: 20; }
+  .system-stage .camera-cluster { z-index: 21; }
+  .system-mobile-guide { display: block; position: absolute; left: 16px; bottom: 104px; z-index: 3; }
+  .system-scope { top: 112px; right: 8px; }
+  .system-stage .scene-label-district { max-width: 112px; white-space: normal; font-size: 12px; }
+  .system-stage .scene-label-district .system-label-domain { display: none; }
+  .system-scope h1 { font-size: 20px; }
+  .system-scope-help { display: none; }
+  .system-scope .system-scope-status { font-size: 12px; }
+}
 @media (max-width: 620px) {
   .narration { left: 8px; bottom: 120px; width: calc(100% - 16px); padding: 12px; font-size: 12px; }
   .narration .system-narration { display: none; }

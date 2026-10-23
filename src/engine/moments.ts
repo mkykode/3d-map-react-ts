@@ -69,13 +69,15 @@ export type PlaybackPacket = TimedItem & (
   | { kind: "request"; request: number; requesterLane: number }
 );
 
-export function playbackPackets(index: ReturnType<typeof playbackIndex>, time: number, visibleEdges: ReadonlySet<number>, visibleRequesters: ReadonlySet<number>) {
+export function playbackPackets(index: ReturnType<typeof playbackIndex>, time: number, visibleEdges: ReadonlySet<number>, visibleRequesters: ReadonlySet<number>, isDrawable?: (packet: PlaybackPacket) => boolean) {
   const active: PlaybackPacket[] = activeIntervals(index.links, time).filter((link) => visibleEdges.has(link.edge)).map((link) => ({ ...link, kind: "link" }));
   for (const request of activeIntervals(index.requests, time)) {
     if (request.requesterLane !== null && visibleRequesters.has(request.requesterLane)) active.push({ kind: "request", request: request.index, requesterLane: request.requesterLane, start: request.start, end: request.end });
   }
-  active.sort((a, b) => a.start - b.start || a.end - b.end || (a.kind === "request" ? a.request : a.instance) - (b.kind === "request" ? b.request : b.instance));
-  return { packets: active.slice(0, MAX_PACKETS), omitted: Math.max(0, active.length - MAX_PACKETS) };
+  // Participant routes can hide siblings on the same edge. Only drawable packets use capacity.
+  const drawable = isDrawable ? active.filter(isDrawable) : active;
+  drawable.sort((a, b) => a.start - b.start || a.end - b.end || (a.kind === "request" ? a.request : a.instance) - (b.kind === "request" ? b.request : b.instance));
+  return { packets: drawable.slice(0, MAX_PACKETS), omitted: Math.max(0, drawable.length - MAX_PACKETS) };
 }
 
 export function playbackStatus(model: ParsedTraceModel, index: ReturnType<typeof playbackIndex>, time: number, hidden: ReadonlySet<number>) {

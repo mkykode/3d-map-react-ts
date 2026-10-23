@@ -23,8 +23,18 @@ The locked dependency set reports 15,498 events across 15 of 28 threads.
   without reparsing.
 - Open Camera beside the minimap to reach every camera control. `top` on Canyon must read as a classic flame chart with
   lane labels and a time ruler.
+- System must open a real WebGL/R3F scene with buildings at different depths and data-driven heights. A 2D-only replacement fails acceptance.
 - System: `#view=system&t=34.24` shows 19 request activity markers. These markers do not assert initiator evidence.
+- The rejected `system=load` URL must also open the 3D System scene.
 - System keeps category colors visible in overview and playback. Main on monkeykode.com is Scripting amber. Request slabs are Loading blue.
+- System labels the demo's page, Cloudflare bot check, and Vercel feedback widget. The guide explains recorded thread work and concurrent totals.
+- System places 40 requests in the page region, four in Cloudflare's region, and one in Vercel's region.
+- Before LCP selects 2.64–123.138 ms. Positions and the 800 ms height reference stay fixed. Cloudflare's main thread becomes a flat pad.
+- Request selection reveals its own resource routes. Open in Canyon retains the exact request identity.
+- Select a thread or request, then use Camera → Fit selection to inspect its ownership region on mobile.
+- Check orbit, top, and side. Labels can cull on overlap, so zoom or fit a participant to inspect smaller labels.
+- Choose Network requests in the guide to inspect ownership and individual request lifetimes. Unknown roles must remain explicit.
+- On mobile, Read components & requests moves focus to the guide below the board.
 - Canyon: Connections starts off. Enable it to inspect at most 200 links and their displayed-count note.
 - City: district plates group entities. Selecting an activity highlights its name across districts and draws dashed caller/callee arcs.
 - Check System and the expanded Camera cluster at 1440×900, 1280×720, and 375×812. Verify that controls remain reachable without horizontal overflow.

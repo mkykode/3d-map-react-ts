@@ -46,15 +46,40 @@ The renderer is a data instrument. Game techniques help people read and navigate
 Canyon is the default view for a single trace. System follows Terrain as the third tab and keyboard shortcut.
 Explicit view hashes remain authoritative. Experiment imports still open the regression overview.
 
+System remains a real R3F scene. Its subject is process ownership and communication.
+Canyon is the rendering reference for instancing, fixed-face data colors, depth, picking, camera interaction, and projected labels.
+System must use height and ground-plane relationships to explain its data. Another time-by-lane chart would duplicate Terrain.
+The rejected 2D load sequence has been removed. Old `system=load` hashes fall back to the 3D System scene.
+
 - The worker builds `connections` once. Typed instance columns transfer zero-copy with the compatibility projection.
 - Flows and recorded request initiators keep recorded provenance. Engine initiators and URL-matched consumers keep derived provenance.
 - Flow/initiator duplicates collapse to the recorded link. Consumers match the latest request for the same URL that started before the consumer.
-- System groups visible threads by process, with separate GPU and request plates. Building height follows busy time in the brush window.
+- System caches process regions and request positions for each immutable recording. Window changes and hidden tracks never repack the world.
+- Page processes sit across X. Main threads, supporting threads, and owned requests occupy distinct ground areas. Shared infrastructure sits behind them.
+- Ground coordinates encode ownership and roles. Distances do not encode time or dependency strength.
+- Building height follows exclusive work in the brush window against a recording-wide reference. Zero work leaves a selectable flat pad.
+- Each request tile belongs to its requesting process, regardless of download host. Unknown requesters occupy an explicit region.
+- Hiding an owner retains its requests and their positions. Hiding the network track hides request tiles.
+- In-window connections can retain request endpoints outside the window. The scene labels the outside-window count.
 - Solid arcs show recorded links. Dashed arcs show derived links. Width represents the window's link count. All arcs share one instanced mesh.
 - Buildings retain the color of their largest category by exclusive busy time in the brush window, including overview and idle states.
 - Active buildings use ink-white outlines. Colors stay stable during playback. Request slabs use Loading blue. Plates remain neutral.
 - Fixed-pixel labels name the thread, dominant category, and busy time. The legend explains every encoding.
+- Plate labels use recording-wide frame evidence through `evidence/systemContext.ts` to keep the topology stable. Known products require matching hosts and paths.
+- Request details resolve ownership at request start. Thread details resolve roles within the selected window. These narrower contexts can differ from recording-wide labels.
+- Red request stripes show recorded blocking flags. The stripes do not measure blocked time or critical-path contribution.
+- Compact loops represent same-thread activity. Selection expands local loops and request-specific routes. The renderer draws at most 200 routes.
+- The System guide ranks exclusive work across visible threads in each process. It shows main-thread work separately and explains concurrent totals.
+- Request ownership uses the requester lane at request start. The request list retains unknown ownership and opens each request's timing evidence.
+- Connection descriptions explain recorded flows, inferred task initiation, request metadata, and URL matches. These descriptions do not claim a critical path.
+- System reserves a separate guide column on desktop. On mobile, the guide follows the board in a scrollable workspace.
+- Milestone controls filter that same world from a selected main-frame hard navigation to FCP, latest LCP candidate, or Load.
+- Missing markers disable milestone filtering. A selected interval does not prove that every visible task delayed the page.
+- Fit selection frames the ownership region for a selected thread or request. Narrow screens prioritize region names and allow camera zoom for detail.
+- System derives camera distance, zoom-out limits, and far clipping from its bounds. Fit all can frame wider ownership maps on narrow screens.
+- Viewport changes can widen those limits without resetting camera navigation. New ownership bounds reset the retained limits.
 - The playhead drives packets, busy threads, counts, and observation-only narration. Paused playback renders on demand. Reduced motion steps between moments.
+- Only packets with a drawable participant route consume the 512-marker budget. Hidden sibling requests cannot suppress a selected request's marker.
 - Request activity markers follow request lifetimes on recorded requesting-frame routes. A marker does not assert an initiator link.
 - At 34.24 ms, the demo shows 19 requests in flight, including the document without a recorded initiator. Graph intervals remain unchanged.
 - Playback draws at most 512 packets. The playback panel discloses omitted packets. Native thread and connection controls provide keyboard access to the board.
@@ -64,8 +89,9 @@ Explicit view hashes remain authoritative. Experiment imports still open the reg
 - `t=<ms>` stores the playhead in the URL. Time clamps to the current brush window.
 - Escape closes the Camera cluster and returns focus to its button. On mobile, leaving the cluster by keyboard closes it.
 
-Local Chromium checks at 1440×900 used seven draw calls for System. Playback's median frame interval was 30.7 ms against Canyon navigation's 55 ms.
-These measurements use the development server. The three-second startup check passes. Overview and 34.24 ms canvases are byte-identical across reloads.
+Prototype Chromium checks at 1440×900 used 11 draw calls for System, within the 12-call budget.
+The release-check playback median was 25.6 ms against Canyon navigation's 55 ms in the same run.
+These measurements use the development server and software rendering. Overview and 34.24 ms canvases remain byte-identical across reloads.
 
 ## Why some proposed game techniques were not added
 

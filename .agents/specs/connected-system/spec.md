@@ -4,7 +4,11 @@
 
 ## Summary
 
-Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. This spec adds System, a board view modeled on pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. Canyon remains the default view, with System third after Terrain. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
+This spec records System's connected 3D board.
+The [clarity iteration](clarity-iteration.md) records the rejected 2D experiment and the corrected 3D design constraints.
+The approved [prototype plan](prototype-plan.md) replaces the original request rack with owned request areas and stable work-height units.
+
+Trace Topography shows cost and time well, but it hides which threads and processes talk to each other. The original board follows pgrun.dev's Postgres internals page. Renderer processes become district plates, threads become buildings, and links between threads become arcs. A playhead replays the trace with moving packets and plain narration. Canyon remains the default view, with System third after Terrain. The same link layer then appears in Canyon and City, and the camera controls leave the toolbar.
 
 **Where to start:** Interfaces and Contracts, which fixes the link graph and the new selection kinds. Then Story 1 and Story 2, which define the board and the playback.
 
@@ -64,8 +68,8 @@ Narration and the status line are pure functions of the trace and the playhead.
 ## Functional Requirements
 
 - FR-001: Build the link graph from flows, initiators, request initiators, and URL-matched consumers, with provenance and deduplication.
-- FR-002: Draw System as district plates per renderer process, a GPU plate, a request rack, and one building per visible thread lane.
-- FR-003: Draw arcs per lane pair in the brush window. Line style shows provenance and width shows the link count.
+- FR-002: Draw stable process regions with owned request areas. Represent each visible thread with a work tower or a zero-work pad.
+- FR-003: Draw evidence routes within the brush window. Expand resource routes for selection, capped at 200 routes. Line style shows provenance. Route width shows its link count.
 - FR-004: Show hover cards and selection for buildings, arcs, and link instances, each resolving to exact entries.
 - FR-005: Replay the brush window with a playhead, moving packets, narration, a status line, and moment steps.
 - FR-006: Keep Canyon the first tab and the default view. Place System third after Terrain.
@@ -115,7 +119,7 @@ flowchart TB
   st["Store: brush, selection, playhead"] -->|window| lay["systemLayout.ts (new)"]
   st -->|window, playhead| arcs["ConnectionArcs.tsx (new, shared)"]
   st -->|playhead| mo["moments.ts (new)"]
-  lay -->|plates, buildings, rack| sc["SystemScene.tsx (new)"]
+  lay -->|plates, buildings, requests| sc["SystemScene.tsx (new)"]
   arcs -->|arcs, packets| sc
   mo -->|moment, text| nar["NarrationPanel.tsx (new)"]
   sc -->|lane or connection| det["DetailsPanel.tsx"]
@@ -134,7 +138,7 @@ Acceptance criteria carry an ID like `AC-1.2`, meaning story 1, criterion 2. Rea
 
 **As a** performance engineer, **I want to** see a trace's processes, threads, and links on one board, **so that** I can follow work across threads.
 
-- [x] A user who opens the demo on System sees plates for monkeykode.com, challenges.cloudflare.com, and vercel.live, a GPU plate, and a rack of 45 request slabs. (AC-1.1)
+- [x] System shows regions for Your page, Cloudflare bot check, Vercel feedback widget, and GPU / graphics. The regions contain 45 owned requests. (AC-1.1)
   - Passes when: each visible thread lane has one building whose height follows busy time in the brush window.
   - Fails when: the user hides a lane in the track picker, and its building and arcs remain.
 - [x] A user who hovers an arc sees its lanes, link count, kind, and provenance. (AC-1.2)
@@ -155,7 +159,7 @@ Acceptance criteria carry an ID like `AC-1.2`, meaning story 1, criterion 2. Rea
 **As a** performance engineer, **I want to** play the trace across the board, **so that** I can see the order in which work moves.
 
 - [x] A user who presses Play sees the playhead advance through the brush window at 0.1x, 0.25x, or 1x. Pause holds the frame. (AC-2.1)
-- [x] A user at `#view=system&t=34.24` on the demo sees Main on monkeykode.com active, 19 packets on its arc to the request rack, and narration that says 19 requests are in flight. (AC-2.2)
+- [x] At `#view=system&t=34.24`, the demo shows 19 request markers and active page work. The narration reports 19 requests in flight. (AC-2.2)
   - Fails when: `t` falls outside the brush window. The playhead then clamps to the nearest window edge.
 - [x] A user steps between moments with Previous and Next moment buttons and the `,` and `.` keys. Moments are navigation start, first request, FCP, LCP, each long task of 50 ms or more, and each finding. (AC-2.3)
   - Fails when: the user is at the last moment. Next moment is then disabled.
@@ -164,7 +168,7 @@ Acceptance criteria carry an ID like `AC-1.2`, meaning story 1, criterion 2. Rea
 - [x] A user with reduced motion sees Play step from moment to moment, with packets as still markers. (AC-2.5)
 - [x] A user who pauses sees the renderer stop drawing frames. (AC-2.6)
 - [x] A user sees a status line with playhead time, busy threads, requests in flight, and load phase. (AC-2.7)
-- [x] A user sees at most 512 packets at once. When more links are in progress, a note states how many are not drawn. (AC-2.8)
+- [x] A user sees at most 512 packets at once. Hidden participant routes do not consume that capacity. The note distinguishes full-graph overflow from selection limits. (AC-2.8)
 
 ### Story 3: Land on Canyon and explore System
 

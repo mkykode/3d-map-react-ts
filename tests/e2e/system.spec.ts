@@ -27,6 +27,27 @@ async function instancePoint(page: Page, name: string, index = 0) {
   }, { name, index });
 }
 
+test("System keeps a real 3D world for default and rejected timeline URLs", async ({ page }) => {
+  for (const hash of ["view=system", "view=system&system=load"]) {
+    await openSystem(page, hash);
+    const world = await page.evaluate(() => {
+      const root = (document.getElementById("trace-camera") as SceneDebugHost).traceScene!();
+      const buildings = root.scene.getObjectByName("system-buildings") as InstancedMesh;
+      const matrix = buildings.instanceMatrix.array;
+      const heights = Array.from({ length: buildings.count }, (_, i) => matrix[i * 16 + 5]);
+      const depths = Array.from({ length: buildings.count }, (_, i) => matrix[i * 16 + 14]);
+      const context = root.gl.getContext();
+      return { webgl: context instanceof WebGL2RenderingContext && !context.isContextLost(), buildings: buildings.count, heights, depths };
+    });
+    expect(world.webgl).toBe(true);
+    expect(world.buildings).toBeGreaterThan(1);
+    expect(world.heights.every((height) => height > 0)).toBe(true);
+    expect(new Set(world.heights).size).toBeGreaterThan(1);
+    expect(new Set(world.depths).size).toBeGreaterThan(1);
+    await expect(page.getByRole("button", { name: "Camera", exact: true })).toBeVisible();
+  }
+});
+
 test("System draws the demo board and picks a thread through to Canyon", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openSystem(page);
@@ -40,7 +61,7 @@ test("System draws the demo board and picks a thread through to Canyon", async (
   for (const label of ["monkeykode.com", "challenges.cloudflare.com", "vercel.live", "GPU"]) await expect(page.locator(".scene-label-district").filter({ hasText: label })).toBeVisible();
   const point = await instancePoint(page, "system-buildings");
   await page.mouse.move(point.x, point.y);
-  await expect(page.getByRole("tooltip")).toContainText("Main — monkeykode.com");
+  await expect(page.getByRole("tooltip")).toContainText("Your page / Main thread");
   await expect(page.getByRole("tooltip")).toContainText("Chromium");
   await page.mouse.click(point.x, point.y);
   await expect(page.getByRole("complementary", { name: "Selection details" })).toContainText("Main — monkeykode.com");
@@ -75,6 +96,7 @@ test("System preserves visible category colors in overview and while scrubbing",
   await page.getByRole("slider", { name: "Playhead", exact: true }).press("End");
   await waitForSceneIdle(page);
   expect(await colors()).toEqual(expected);
+  await page.getByRole("button", { name: "Legend", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Legend", exact: true })).toContainText("Color: largest category by busy time");
 });
 
@@ -98,6 +120,36 @@ test("System arc evidence keeps recorded counts and opens exact source entries",
   await page.locator(".connection-instance:enabled").first().click();
   await expect(page).toHaveURL(/view=canyon/);
   await expect(page.getByRole("complementary", { name: "Selection details" })).toContainText("Start");
+});
+
+test("System explains components, request ownership, and the scope of work measurements", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openSystem(page);
+  const overview = page.getByRole("region", { name: "Page components" });
+  await expect(overview).toContainText("Thread times can overlap");
+  const cloudflare = overview.getByRole("article").filter({ hasText: "Cloudflare bot check" });
+  await expect(cloudflare).toContainText("Main 601 ms");
+  await expect(cloudflare).toContainText("Embedded in your page");
+  await cloudflare.getByRole("button").click();
+  const details = page.getByRole("complementary", { name: "Selection details" });
+  await details.getByText("Why this label?", { exact: true }).click();
+  await expect(details).toContainText("Role inferred from the recorded frame URL");
+  await expect(details).toContainText("/turnstile/");
+  await page.getByRole("button", { name: "Clear selection" }).click();
+  await overview.getByRole("button", { name: "Network requests", exact: true }).click();
+  const network = page.getByRole("region", { name: "Network requests", exact: true });
+  await expect(network).toContainText("45");
+  await expect(network).toContainText("Tile size does not show duration or download size");
+  await network.getByText("Inspect requests and ownership", { exact: true }).click();
+  await network.getByRole("button").first().click();
+  await expect(details).toContainText("Requested by");
+  await expect(details).toContainText("Request lifetime");
+  await page.getByRole("button", { name: "Clear selection" }).click();
+  const audit = await new AxeBuilder({ page }).include(".system-rail").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  expect(audit.violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const brush = await page.locator(".brushbar").boundingBox();
+  expect(brush!.y + brush!.height).toBeLessThanOrEqual(720);
 });
 
 for (const time of [null, 34.24]) test(`System has byte-identical pixels after reload at ${time ?? "overview"}`, async ({ page }) => {
@@ -176,6 +228,18 @@ test("System hides tracks and exposes its controls by keyboard at 375px", async 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const audit = await new AxeBuilder({ page }).include(".narration").include(".camera-cluster").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(audit.violations).toEqual([]);
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
+  await page.getByRole("button", { name: "Read components & requests ↓", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "System guide" })).toBeFocused();
+  const component = page.getByRole("button", { name: /^Cloudflare bot check/ });
+  await component.click();
+  const details = page.getByRole("complementary", { name: "Selection details" });
+  await expect(details).toBeFocused();
+  const rect = await details.boundingBox();
+  expect(rect!.y).toBeGreaterThanOrEqual(0);
+  expect(rect!.y + rect!.height).toBeLessThanOrEqual(812);
+  await page.getByRole("button", { name: "Clear selection", exact: true }).click();
+  await expect(component).toBeFocused();
 });
 
 test("Canyon caps displayed connections and identifies aggregate endpoints", async ({ page }) => {

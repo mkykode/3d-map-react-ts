@@ -84,7 +84,13 @@ test("mobile keyboard focus leaves Camera without obscuring playback controls", 
   await camera.click();
   await page.getByRole("button", { name: "Reset view", exact: true }).focus();
   await page.keyboard.press("Tab");
+  const guide = page.getByRole("button", { name: "Read components & requests ↓", exact: true });
+  await expect(guide).toBeFocused();
+  await expect(camera).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("complementary", { name: "System guide" })).toBeFocused();
   const play = page.getByRole("button", { name: "Play", exact: true });
+  for (let tabs = 0; tabs < 16 && !(await play.evaluate((button) => button === document.activeElement)); tabs++) await page.keyboard.press("Tab");
   await expect(play).toBeFocused();
   await page.keyboard.press("Tab");
   const next = page.getByRole("button", { name: "Next moment", exact: true });
